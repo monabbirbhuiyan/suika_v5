@@ -1,4 +1,4 @@
-Suika — Product Documentation (v5)
+# \*\*Suika — Product Documentation (v5)
 
 1. Product Overview
    Name
@@ -137,22 +137,22 @@ There are no freeform edges.
    one-sentence rationale
    The AI never introduces new facts—it only reasons over user-written content.
 
-10.2 Resolution Suggestions (Secondary)
-The AI may suggest:
-“This question appears resolved by these fragments.”
-Only when:
-The target is a Question
-There is strong supporting content
-No strong contradiction exists
-Resolution suggestions are always optional.
+   10.2 Resolution Suggestions (Secondary)
+   The AI may suggest:
+   “This question appears resolved by these fragments.”
+   Only when:
+   The target is a Question
+   There is strong supporting content
+   No strong contradiction exists
+   Resolution suggestions are always optional.
 
-10.3 Clustering (Layout-Only, Optional)
-AI may softly group fragments into conceptual clusters to improve visualization.
-Clusters are not a taxonomy
-They affect the layout only
-They may remain invisible to users
+   10.3 Clustering (Layout-Only, Optional)
+   AI may softly group fragments into conceptual clusters to improve visualization.
+   Clusters are not a taxonomy
+   They affect the layout only
+   They may remain invisible to users
 
-11. AI Suggestion Inbox (UX)
+10. AI Suggestion Inbox (UX)
     Each Problem Space includes a Suggestions Panel.
     Each Suggestion Shows:
     Relationship type badge
@@ -168,7 +168,7 @@ They may remain invisible to users
     “Accept all High confidence.”
     “Review next batch.”
     Rejected suggestions are not shown again.
-12. The Clarity Graph (Signature Feature)
+11. The Clarity Graph (Signature Feature)
     Purpose
     Visualize how understanding evolves over time.
 
