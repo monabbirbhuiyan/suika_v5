@@ -37,12 +37,12 @@ const Navbar = () => {
           </Link>
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/signin">
+          <Link href="/sign-in">
             <Button variant="ghost" size="sm">
               Sign in
             </Button>
           </Link>
-          <Link href="/signup">
+          <Link href="/sign-up">
             <Button size="sm" className="bg-primary hover:bg-primary/90">
               Try demo
             </Button>
