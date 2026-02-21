@@ -1,32 +1,27 @@
-import { FloatingBackground } from "@/components/global/floating-background";
 import CTASection from "@/components/landing/cta-section";
 import FAQSection from "@/components/landing/faq-section";
 import FeaturesSection from "@/components/landing/features-section";
 import Footer from "@/components/landing/footer";
 import HeroSection from "@/components/landing/hero-section";
 import Navbar from "@/components/landing/navbar";
+import PhilosophySection from "@/components/landing/philosophy-section";
 import PricingSection from "@/components/landing/pricing-section";
-import SignatureConstraintSection from "@/components/landing/signature-constraint-section";
-import UseCasesSection from "@/components/landing/use-cases-section";
-import WhySuikaSection from "@/components/landing/why-suika-section";
-import Image from "next/image";
+import { getServerSession } from "@/action/get-session";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession();
+  const user = session?.user ?? null;
+
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <FloatingBackground />
-      <Navbar />
-      <div className="pt-16">
-        <HeroSection />
-        <WhySuikaSection />
-        <FeaturesSection />
-        <UseCasesSection />
-        <SignatureConstraintSection />
-        <FAQSection />
-        <PricingSection />
-        <CTASection />
-        <Footer />
-      </div>
+    <div className="min-h-screen bg-[#FAFAF8]">
+      <Navbar user={user as any} />
+      <HeroSection />
+      <FeaturesSection />
+      <PhilosophySection />
+      <PricingSection />
+      <FAQSection />
+      <CTASection />
+      <Footer />
     </div>
   );
 }

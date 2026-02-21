@@ -7,7 +7,7 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    expiresIn: 60 * 60 * 24 * 30, // 30 days
     updateAge: 60 * 15, // 15 minutes
   },
   socialProviders: {
@@ -23,6 +23,14 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  user: {
+    additionalFields: {
+      bio: {
+        type: "string",
+        input: true,
+      }
+    }
+  }
 });
 
 export type Session = typeof auth.$Infer.Session;

@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { FloatingBackground } from "../global/floating-background";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -40,6 +39,7 @@ import { Input } from "../ui/input";
 import { Progress } from "../ui/progress";
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/action/get-session";
+import { FloatingCards } from "../global/floating-cards";
 
 const SignUpForm = () => {
   const router = useRouter();
@@ -86,10 +86,10 @@ const SignUpForm = () => {
     passwordStrength <= 25
       ? "Weak"
       : passwordStrength <= 50
-      ? "Fair"
-      : passwordStrength <= 75
-      ? "Good"
-      : "Strong";
+        ? "Fair"
+        : passwordStrength <= 75
+          ? "Good"
+          : "Strong";
 
   const passwordRequirements = [
     { label: "At least 8 characters", met: password.length >= 8 },
@@ -140,11 +140,11 @@ const SignUpForm = () => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4">
-      <FloatingBackground />
+      <FloatingCards />
       <Card className="w-full max-w-md border-border bg-card/80 backdrop-blur-sm relative z-10">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-2 mx-auto">
-            <Image src={"/assets/logo.svg"} alt="Logo" width={40} height={40} />
+            <Image src={"/assets/logo.svg"} alt="Logo" width={30} height={30} />
             <span className="text-2xl font-semibold">Suika</span>
           </div>
           <div className="text-center">
@@ -348,10 +348,10 @@ const SignUpForm = () => {
                               passwordStrength <= 25
                                 ? "text-destructive"
                                 : passwordStrength <= 50
-                                ? "text-chart-3"
-                                : passwordStrength <= 75
-                                ? "text-chart-2"
-                                : "text-accent-foreground"
+                                  ? "text-chart-3"
+                                  : passwordStrength <= 75
+                                    ? "text-chart-2"
+                                    : "text-accent-foreground"
                             }`}
                           >
                             {strengthLabel}

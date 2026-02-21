@@ -13,16 +13,21 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
 model User {
-  id            String    @id
+  id            String         @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  bio           String?
+  emailVerified Boolean        @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   sessions      Session[]
   accounts      Account[]
+  subscription  Subscription?
+  problemSpaces ProblemSpace[]
 
   @@unique([email])
   @@map("user")
@@ -74,4 +79,163 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// ─── Subscriptions & Plans ───────────────────────────────────────────────────
+
+enum PlanTier {
+  FREE
+  THOUGHT_PARTNER
+  LIFE_ARCHITECT
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  plan             PlanTier  @default(FREE)
+  stripeCustomerId String?
+  stripeSubId      String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ─── Problem Spaces ──────────────────────────────────────────────────────────
+
+enum Sentiment {
+  CLARIFYING
+  CONTRADICTING
+  RESOLVING
+  NEUTRAL
+}
+
+model ProblemSpace {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  progress  Int       @default(0) // 0–100 clarity percentage
+  sentiment Sentiment @default(NEUTRAL)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fragments   Fragment[]
+  graphNodes  GraphNode[]
+  connections GraphConnection[]
+  suggestions AiSuggestion[]
+
+  @@index([userId])
+  @@map("problem_spaces")
+}
+
+// ─── Fragments ───────────────────────────────────────────────────────────────
+
+enum FragmentStatus {
+  CLARIFIES
+  CONTRADICTS
+  RESOLVES
+  NEUTRAL
+}
+
+model Fragment {
+  id             String         @id @default(cuid())
+  problemSpaceId String
+  title          String
+  content        String
+  status         FragmentStatus @default(NEUTRAL)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
+  graphNode    GraphNode? // a fragment can optionally be rendered as a graph node
+
+  @@index([problemSpaceId])
+  @@map("fragments")
+}
+
+// ─── Clarity Graph ───────────────────────────────────────────────────────────
+
+model GraphNode {
+  id             String   @id @default(cuid())
+  problemSpaceId String
+  fragmentId     String?  @unique // optional 1:1 link back to its source fragment
+  title          String
+  headerColor    String   @default("sage") // sage | soft-blue | gentle-coral | mint
+  posX           Float    @default(0)
+  posY           Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  problemSpace ProblemSpace   @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
+  fragment     Fragment?      @relation(fields: [fragmentId], references: [id], onDelete: SetNull)
+  pins         GraphNodePin[]
+
+  @@index([problemSpaceId])
+  @@map("graph_nodes")
+}
+
+enum PinDirection {
+  INPUT
+  OUTPUT
+}
+
+model GraphNodePin {
+  id        String       @id @default(cuid())
+  nodeId    String
+  label     String
+  direction PinDirection
+  sortOrder Int          @default(0)
+
+  node           GraphNode         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  outConnections GraphConnection[] @relation("FromPin")
+  inConnections  GraphConnection[] @relation("ToPin")
+
+  @@index([nodeId])
+  @@map("graph_node_pins")
+}
+
+model GraphConnection {
+  id             String   @id @default(cuid())
+  problemSpaceId String
+  fromPinId      String
+  toPinId        String
+  createdAt      DateTime @default(now())
+
+  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
+  fromPin      GraphNodePin @relation("FromPin", fields: [fromPinId], references: [id], onDelete: Cascade)
+  toPin        GraphNodePin @relation("ToPin", fields: [toPinId], references: [id], onDelete: Cascade)
+
+  @@unique([fromPinId, toPinId])
+  @@index([problemSpaceId])
+  @@map("graph_connections")
+}
+
+// ─── AI Weaving Suggestions ─────────────────────────────────────────────────
+
+enum SuggestionStrength {
+  STRONG
+  MEDIUM
+  GENTLE
+}
+
+model AiSuggestion {
+  id             String             @id @default(cuid())
+  problemSpaceId String
+  fromTitle      String
+  toTitle        String
+  reason         String
+  strength       SuggestionStrength @default(MEDIUM)
+  accepted       Boolean            @default(false)
+  dismissedAt    DateTime?
+  createdAt      DateTime           @default(now())
+
+  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
+
+  @@index([problemSpaceId])
+  @@map("ai_suggestions")
 }

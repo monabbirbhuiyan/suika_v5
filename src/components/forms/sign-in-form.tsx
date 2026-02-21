@@ -1,7 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
-import { FloatingBackground } from "../global/floating-background";
 import {
   Card,
   CardContent,
@@ -30,6 +29,8 @@ import {
 import { Checkbox } from "../ui/checkbox";
 import { Separator } from "../ui/separator";
 import { getServerSession } from "@/action/get-session";
+import { FloatingCards } from "../global/floating-cards";
+import Image from "next/image";
 
 const SignInForm = () => {
   const router = useRouter();
@@ -65,6 +66,16 @@ const SignInForm = () => {
       toast.error(error.message || "Something went wrong. Please try again.");
     } else if (session?.user) {
       toast.success("Successfully signed in!");
+      // Persist remember preference for client-side recovery
+      try {
+        if (data.rememberMe) {
+          localStorage.setItem("suika_remember", "true");
+        } else {
+          localStorage.removeItem("suika_remember");
+        }
+      } catch (e) {
+        // ignore (SSR safety not needed here in client component)
+      }
       router.push(`/${user?.id}/dashboard`);
     }
   };
@@ -89,14 +100,13 @@ const SignInForm = () => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4">
-      <FloatingBackground />
+      <FloatingCards />
 
       <Card className="w-full max-w-md border-border bg-card/80 backdrop-blur-sm relative z-10">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-2 mx-auto">
-            <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Network className="h-6 w-6 text-primary" />
-            </div>
+            <Image src={"/assets/logo.svg"} alt="Logo" width={30} height={30} />
+
             <span className="text-2xl font-semibold">Suika</span>
           </div>
           <div className="text-center">

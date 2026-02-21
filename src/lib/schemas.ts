@@ -33,3 +33,14 @@ export const signInSchema = z.object({
 
 export type SignInFormData = z.infer<typeof signInSchema>;
 export type SignUpFormData = z.infer<typeof signUpSchema>;
+
+
+// Profile Schema
+export const profileSchema = z.object({
+  name: z.string().min(1, "Full name is required"),  
+  email: z.email("Invalid email address"),
+  image: z.string().optional(), 
+  bio: z.string().max(160, "Bio must be less than 160 characters").optional(), 
+});
+
+export type ProfileFormValues = z.infer<typeof profileSchema>;

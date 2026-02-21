@@ -1,127 +1,64 @@
-import {
-  CheckCircle2,
-  GitBranch,
-  Network,
-  Sparkles,
-  Target,
-  Zap,
-} from "lucide-react";
+"use client";
+import { features } from "@/lib/constant";
+import { motion } from "framer-motion";
 import React from "react";
 
 type Props = {};
 
 const FeaturesSection = (props: Props) => {
   return (
-    <section className="relative z-10 container mx-auto px-4 py-24 bg-muted/80">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-4xl font-bold mb-4">
-          Powerful features for exploratory thinking
-        </h2>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Every feature is designed to help you reduce uncertainty and make
-          meaningful progress
-        </p>
-      </div>
+    <section id="features" className="py-18 px-6 bg-white">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          className="text-center mb-16"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <h2 className="text-4xl md:text-5xl font-light text-[#2D2D2D] mb-4">
+            Built for thinking work
+          </h2>
+          <p className="text-lg text-[#8A8A8A] max-w-2xl mx-auto">
+            Everything you need to make sense of complexity, without the
+            pressure of productivity theater.
+          </p>
+        </motion.div>
 
-      <div className="grid lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
-        <div className="space-y-6">
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Fragment Types</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Organize your thoughts with four distinct fragment types:
-                Questions (what you don&apos;t know), Insights (what you&apos;ve
-                discovered), Constraints (what limits you), and Observations
-                (what you&apos;ve noticed). Each type plays a role in reducing
-                uncertainty.
-              </p>
-            </div>
-          </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="group"
+              >
+                <div className="h-full bg-linear-to-br from-gray-50/50 to-white rounded-2xl p-6 border border-gray-100 hover:border-gray-200 hover:shadow-lg transition-all duration-300">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
+                    style={{ backgroundColor: `${feature.color}20` }}
+                  >
+                    <Icon
+                      className="w-6 h-6"
+                      style={{ color: feature.color }}
+                    />
+                  </div>
 
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center">
-              <GitBranch className="w-6 h-6 text-secondary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">
-                Semantic Relationships
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Connect fragments with meaningful relationships: Clarifies (adds
-                detail), Contradicts (shows conflicts), Resolves (answers
-                questions), and Supports (adds evidence). The system uses these
-                to measure your understanding.
-              </p>
-            </div>
-          </div>
+                  <h3 className="text-xl font-medium text-[#2D2D2D] mb-3">
+                    {feature.title}
+                  </h3>
 
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-              <Network className="w-6 h-6 text-accent" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">
-                Force-Directed Graph
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Your fragments are automatically positioned using physics
-                simulation. Strongly connected ideas cluster together, while
-                unrelated ones drift apart. You can&apos;t manually arrange
-                them—the layout reflects your actual understanding.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Target className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Clarity Score</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Track your progress with a dynamic clarity score that increases
-                as you resolve questions, connect insights, and address
-                constraints. See uncertainty decrease in real-time as you work
-                through your problem space.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center">
-              <Zap className="w-6 h-6 text-secondary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">
-                Multiple Problem Spaces
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Keep different areas of exploration separate with isolated
-                problem spaces. Work on a product strategy, research project,
-                and personal decision simultaneously without mixing contexts.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <div className="shrink-0 w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-accent" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Progress Tracking</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Monitor fragment activity, connection density, and resolution
-                rates. Unlike traditional task managers, Suika measures progress
-                by how much clearer things become, not by how many boxes you
-                check.
-              </p>
-            </div>
-          </div>
+                  <p className="text-[#6A6A6A] leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
