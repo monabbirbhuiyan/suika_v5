@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Box, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { ProblemSpace } from "@/generated/prisma";
+import { ProblemSpace, User } from "@/generated/prisma";
+import CreateNewProblemSpaceForm from "../forms/create-problem-space-form";
 
 type Props = {
   problemSpace: ProblemSpace[];
@@ -51,7 +52,7 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
           {spaces.map((space) => (
             <Link
               key={space.id}
-              href={`/problem-spaces/${space.id}`}
+              href={`problem-spaces/${space.id}`}
               className="rounded-xl bg-card p-6 text-left hover:ring-1 hover:ring-sage/30 transition-all group block"
             >
               <div className="flex items-start justify-between">
@@ -117,6 +118,11 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
           </button>
         </motion.div>
       )}
+
+      <CreateNewProblemSpaceForm
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
     </div>
   );
 };

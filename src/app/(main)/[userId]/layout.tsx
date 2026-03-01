@@ -12,7 +12,7 @@ type Props = {
 
 const DashboardLayout = ({ children }: Props) => {
   return (
-    <SidebarProvider>
+    <SidebarProvider suppressHydrationWarning>
       <AppSidebarContainer />
 
       <SidebarInset>

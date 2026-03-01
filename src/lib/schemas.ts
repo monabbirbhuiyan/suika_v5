@@ -15,7 +15,7 @@ export const signUpSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(
       /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
+      "Password must contain at least one special character",
     ),
   terms: z
     .boolean()
@@ -34,13 +34,19 @@ export const signInSchema = z.object({
 export type SignInFormData = z.infer<typeof signInSchema>;
 export type SignUpFormData = z.infer<typeof signUpSchema>;
 
-
 // Profile Schema
 export const profileSchema = z.object({
-  name: z.string().min(1, "Full name is required"),  
+  name: z.string().min(1, "Full name is required"),
   email: z.email("Invalid email address"),
-  image: z.string().optional(), 
-  bio: z.string().max(160, "Bio must be less than 160 characters").optional(), 
+  image: z.string().optional(),
+  bio: z.string().max(160, "Bio must be less than 160 characters").optional(),
 });
 
 export type ProfileFormValues = z.infer<typeof profileSchema>;
+
+export const problemSpaceSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+});
+
+export type ProblemSpaceFormValues = z.infer<typeof problemSpaceSchema>;
