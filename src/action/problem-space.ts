@@ -14,7 +14,15 @@ export const getProblemSpaces = async () => {
   const problemSpaces = await prisma.user.findMany({
     where: { id: user.id },
     include: {
-      problemSpaces: true,
+      problemSpaces: {
+        include: {
+          fragments: {
+            select: {
+              type: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -45,4 +53,58 @@ export const createProblemSpace = async (data: any) => {
   });
 
   return newProblemSpace;
+};
+
+export const getProblemSpaceById = async (id: string) => {
+  const session = await getServerSession();
+  const user = session?.user;
+
+  if (!user || !id) {
+    return null;
+  }
+
+  const problemSpace = await prisma.problemSpace.findFirst({
+    where: {
+      id,
+      userId: user.id,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+      fragments: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+      graphNodes: {
+        include: {
+          fragments: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+          pins: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
+      },
+      connections: {
+        include: {
+          fromPin: true,
+          toPin: true,
+        },
+      },
+      suggestions: true,
+    },
+  });
+
+  return problemSpace;
 };

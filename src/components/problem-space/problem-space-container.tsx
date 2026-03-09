@@ -1,15 +1,30 @@
 "use client";
 import React from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Box, Plus, Sparkles } from "lucide-react";
+import { Box, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { ProblemSpace, User } from "@/generated/prisma";
+import { Fragment, ProblemSpace } from "@/generated/prisma";
 import CreateNewProblemSpaceForm from "../forms/create-problem-space-form";
+import { cn } from "@/lib/utils";
 
 type Props = {
-  problemSpace: ProblemSpace[];
+  problemSpace: (ProblemSpace & {
+    fragments?: Pick<Fragment, "type">[];
+  })[];
 };
+
+const typeConfig: Array<{
+  type: Fragment["type"];
+  label: string;
+  colorClass: string;
+}> = [
+  { type: "QUESTION", label: "Question", colorClass: "bg-primary" },
+  { type: "IDEA", label: "Idea", colorClass: "bg-[#005b96]" },
+  { type: "OBSERVATION", label: "Observation", colorClass: "bg-[#dc8b30]" },
+  { type: "CONSTRAINS", label: "Constrains", colorClass: "bg-[#ff4d4f]" },
+  { type: "CONCLUSION", label: "Conclusion", colorClass: "bg-[#52c41a]" },
+];
 
 const ProblemSpaceContainer = ({ problemSpace }: Props) => {
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -49,36 +64,90 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          {spaces.map((space) => (
-            <Link
-              key={space.id}
-              href={`problem-spaces/${space.id}`}
-              className="rounded-xl bg-card p-6 text-left hover:ring-1 hover:ring-sage/30 transition-all group block"
-            >
-              <div className="flex items-start justify-between">
-                <h3 className="font-sans font-medium text-foreground group-hover:text-sage transition-colors">
-                  {space.title}
-                </h3>
-                {/* <span
-                  className={`text-xs px-2.5 py-1 rounded-full bg-opacity-15 ${space.sentimentColor}`}
+          {spaces.map((space) =>
+            (() => {
+              const fragmentCount = space.fragments?.length ?? 0;
+              const counts = typeConfig.map((config) => {
+                const count =
+                  space.fragments?.filter(
+                    (fragment) => fragment.type === config.type,
+                  ).length ?? 0;
+                return {
+                  ...config,
+                  count,
+                };
+              });
+
+              return (
+                <Link
+                  key={space.id}
+                  href={`problem-spaces/${space.id}`}
+                  className="rounded-xl bg-card p-6 text-left hover:ring-1 hover:ring-sage/30 transition-all group block"
                 >
-                  {space.sentiment}
-                </span> */}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {/* {space.fragments} fragments &middot; Updated {space.updated} */}
-              </p>
-              <div className="mt-4 h-1.5 bg-border/60 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-sage/60 rounded-full transition-all"
-                  style={{ width: `${space.progress}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1.5">
-                {space.progress}% clarity
-              </p>
-            </Link>
-          ))}
+                  <div className="flex items-start justify-between">
+                    <h3 className="font-sans font-medium text-foreground group-hover:text-sage transition-colors">
+                      {space.title}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {fragmentCount} fragments
+                  </p>
+                  <div className="mt-4 h-1.5 bg-border/60 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-sage/60 rounded-full transition-all"
+                      style={{ width: `${space.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {space.progress}% clarity
+                  </p>
+
+                  {/* Fragment types */}
+                  <div className="mt-3">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-border/60 flex">
+                      {counts.map((item) => {
+                        if (item.count === 0 || fragmentCount === 0)
+                          return null;
+
+                        return (
+                          <div
+                            key={item.type}
+                            className={cn("h-full", item.colorClass)}
+                            style={{
+                              width: `${(item.count / fragmentCount) * 100}%`,
+                            }}
+                            title={`${item.label}: ${item.count}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {counts.map((item) => {
+                        if (item.count === 0) return null;
+
+                        return (
+                          <div
+                            key={item.type}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-0.5"
+                          >
+                            <span
+                              className={cn(
+                                "h-1.5 w-1.5 rounded-full",
+                                item.colorClass,
+                              )}
+                            />
+                            <span className="text-[10px] text-muted-foreground">
+                              {item.label}: {item.count}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })(),
+          )}
 
           {/* New space CTA card */}
           <button

@@ -135,27 +135,29 @@ model ProblemSpace {
 
 // ─── Fragments ───────────────────────────────────────────────────────────────
 
-enum FragmentStatus {
-  CLARIFIES
-  CONTRADICTS
-  RESOLVES
-  NEUTRAL
+enum FragmentType {
+  QUESTION
+  IDEA
+  OBSERVATION
+  CONSTRAINS
+  CONCLUSION
 }
 
 model Fragment {
-  id             String         @id @default(cuid())
+  id             String       @id @default(cuid())
   problemSpaceId String
-  title          String
+  nodeId         String
   content        String
-  status         FragmentStatus @default(NEUTRAL)
-  sortOrder      Int            @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  type           FragmentType @default(QUESTION)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-  graphNode    GraphNode? // a fragment can optionally be rendered as a graph node
+  node         GraphNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@index([problemSpaceId])
+  @@index([nodeId])
   @@map("fragments")
 }
 
@@ -164,7 +166,6 @@ model Fragment {
 model GraphNode {
   id             String   @id @default(cuid())
   problemSpaceId String
-  fragmentId     String?  @unique // optional 1:1 link back to its source fragment
   title          String
   headerColor    String   @default("sage") // sage | soft-blue | gentle-coral | mint
   posX           Float    @default(0)
@@ -173,7 +174,7 @@ model GraphNode {
   updatedAt      DateTime @updatedAt
 
   problemSpace ProblemSpace   @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-  fragment     Fragment?      @relation(fields: [fragmentId], references: [id], onDelete: SetNull)
+  fragments    Fragment[]
   pins         GraphNodePin[]
 
   @@index([problemSpaceId])

@@ -50,3 +50,29 @@ export const problemSpaceSchema = z.object({
 });
 
 export type ProblemSpaceFormValues = z.infer<typeof problemSpaceSchema>;
+
+export const fragmentTypes = [
+  "QUESTION",
+  "IDEA",
+  "OBSERVATION",
+  "CONSTRAINS",
+  "CONCLUSION",
+] as const;
+
+export const singleInstanceFragmentTypes = ["QUESTION", "CONCLUSION"] as const;
+
+export const fragmentSchema = z.object({
+  content: z.string().min(1, "Content is required"),
+  nodeId: z.string().min(1, "Node is required"),
+  type: z.enum(fragmentTypes, {
+    message: "Type is required",
+  }),
+});
+
+export type FragmentFormValues = z.infer<typeof fragmentSchema>;
+
+export const createNodeSchema = z.object({
+  title: z.string().min(1, "Node name is required"),
+});
+
+export type CreateNodeFormValues = z.infer<typeof createNodeSchema>;

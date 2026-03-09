@@ -139,3 +139,41 @@ It helps you **see the work your mind is already doing**.
 That’s the product.  
 That’s the moat.  
 That’s the soul.
+
+---
+
+## AI Setup (Gemini)
+
+The project includes a server-side chat endpoint at:
+
+- `POST /api/ai/chat`
+
+### Environment variables
+
+Add the following values to your `.env` file:
+
+- `GOOGLE_AI_API_KEY=AIza...`
+- `GOOGLE_AI_MODEL=gemini-2.0-flash` (optional, defaults to this model)
+
+### Example request
+
+```bash
+curl -X POST http://localhost:3000/api/ai/chat \
+	-H "Content-Type: application/json" \
+	-b "<your auth cookies>" \
+	-d '{
+		"messages": [
+			{"role": "user", "content": "Who are you?"}
+		],
+		"maxTokens": 200,
+		"temperature": 0.7
+	}'
+```
+
+### Response shape
+
+```json
+{
+  "reply": "..."
+}
+```

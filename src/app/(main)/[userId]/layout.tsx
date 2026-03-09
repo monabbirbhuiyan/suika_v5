@@ -1,16 +1,37 @@
 import AppSidebarContainer from "@/components/sidebar/app-sidebar-container";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import MainNavbar from "@/components/global/main-navbar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { getServerSession } from "@/action/get-session";
+import prisma from "@/lib/prisma";
 import React from "react";
 
 type Props = {
   children: React.ReactNode;
 };
 
-const DashboardLayout = ({ children }: Props) => {
+const DashboardLayout = async ({ children }: Props) => {
+  const session = await getServerSession();
+  const user = session?.user;
+
+  const subscription = user
+    ? await prisma.subscription.findUnique({
+        where: {
+          userId: user.id,
+        },
+        select: {
+          plan: true,
+        },
+      })
+    : null;
+
+  const planLabel = subscription?.plan
+    ? subscription.plan
+        .toLowerCase()
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    : "Free";
+
   return (
     <SidebarProvider suppressHydrationWarning>
       <AppSidebarContainer />
@@ -20,12 +41,12 @@ const DashboardLayout = ({ children }: Props) => {
           className="w-full min-h-screen flex flex-col"
           suppressHydrationWarning
         >
-          <div className="flex items-start pl-4">
-            <SidebarTrigger className="mt-6  z-50" />
-            {/* Navbar */}
-          </div>
-
-          <div className="p-0 md:p-4 pt-2 flex-1">{children}</div>
+          <MainNavbar
+            userName={user?.name || "User"}
+            userImage={user?.image}
+            currentPlan={planLabel}
+          />
+          <div className="p-0 md:p-4 pt-2 flex-1 ">{children}</div>
         </main>
       </SidebarInset>
     </SidebarProvider>
