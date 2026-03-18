@@ -75,7 +75,11 @@ const fetchMotivationalQuote = async (): Promise<QuotePayload | null> => {
       .json()
       .catch(() => null)) as QuotePayload | null;
 
-    if (payload?.quote && payload.quote.trim().length > 0) {
+    if (
+      payload?.quote &&
+      payload.quote.trim().length > 0 &&
+      payload.source === "ai"
+    ) {
       cachedQuotePayload = {
         payload,
         expiresAt: Date.now() + QUOTE_CACHE_TTL_MS,
@@ -100,9 +104,6 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
   const [quote, setQuote] = React.useState(
     quotes[Math.floor(Math.random() * quotes.length)],
   );
-  const [quoteSource, setQuoteSource] = React.useState<"ai" | "fallback">(
-    "fallback",
-  );
 
   React.useEffect(() => {
     let isMounted = true;
@@ -113,7 +114,6 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
 
         if (isMounted && payload?.quote && payload.quote.trim().length > 0) {
           setQuote(payload.quote.trim());
-          setQuoteSource(payload.source === "ai" ? "ai" : "fallback");
         }
       } catch {
         // Keep the local fallback quote when API request fails.
@@ -161,9 +161,6 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
         <div className="hidden md:flex items-center rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
           <span className="font-medium text-foreground mr-2">Quote</span>
           <span>{quote}</span>
-          <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-            {quoteSource}
-          </span>
         </div>
 
         <div className="relative" ref={menuRef}>

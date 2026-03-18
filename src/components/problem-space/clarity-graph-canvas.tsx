@@ -17,7 +17,7 @@ import {
   ReactFlowInstance,
   ReactFlowProvider,
 } from "@xyflow/react";
-import { Fragment, GraphConnection, GraphNode } from "@/generated/prisma";
+import { Fragment, GraphNode } from "@/generated/prisma";
 import { Card } from "../ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import GraphCanvasControls from "./graph-canvas-controls";
@@ -27,7 +27,6 @@ type Props = {
   problemSpaceId: string;
   graphNodes: GraphNode[];
   fragments: Fragment[];
-  connections: GraphConnection[];
 };
 
 type NodePosition = {
@@ -272,7 +271,7 @@ const ClarityFlowNode = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
         className="p-3 transition-all cursor-pointer hover:border-primary/40 relative z-0 bg-card"
         onClick={() => data.onSelectNode(data.nodeId)}
       >
-        <div className="h-[40px] min-w-0 flex flex-col justify-center">
+        <div className="h-10 min-w-0 flex flex-col justify-center">
           <p className="truncate text-sm font-medium text-foreground leading-tight">
             {data.title}
           </p>
@@ -286,7 +285,7 @@ const ClarityFlowNode = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
             return (
               <div
                 key={fragment.id}
-                className="relative flex h-[28px] items-center px-3 group"
+                className="relative flex h-7 items-center px-3 group"
                 title={data.labels[index]}
               >
                 {/* Invisible Target Handle */}
@@ -355,6 +354,10 @@ const buildCircuitPath = (
   safeAlleyY: number,
   corridorIndex: number,
 ) => {
+  // Route with orthogonal segments so links stay readable in dense layouts:
+  // - forward links take a centered "elbow" path
+  // - backward/same-column links detour through a shared alley under nodes
+  // corridorIndex/laneOffset fans overlapping links apart.
   if (targetX > sourceX + 40) {
     const midX = sourceX + (targetX - sourceX) / 2 + laneOffset;
     return [
@@ -464,6 +467,9 @@ const ClarityFlowEdge = ({
         id={`${id}-hit`}
         path={edgePath}
         className="clarity-edge-hit"
+        // Transparent interaction path:
+        // keeps visual stroke clean while providing a larger hover/click target
+        // so edge selection and pointer cursor remain reliable.
         style={{
           stroke: "transparent",
           strokeWidth: 20,
@@ -487,7 +493,6 @@ const ClarityGraphCanvasInner = ({
   problemSpaceId,
   graphNodes,
   fragments,
-  connections,
 }: Props) => {
   const [zoom, setZoom] = React.useState(1);
   const [rfInstance, setRfInstance] = React.useState<ReactFlowInstance<
@@ -876,8 +881,11 @@ const ClarityGraphCanvasInner = ({
   return (
     <>
       <div className="rounded-xl border bg-card/30 p-4">
-        {/* FIX 2: By injecting these robust CSS rules directly, we aggressively force 
-          pointer events to stay alive on edges, bypassing React Flow's 'elementsSelectable={false}' lock.
+        {/*
+          Edge interaction overrides:
+          React Flow pan mode can prioritize drag cursors over edge cursors.
+          These rules ensure pointer feedback is shown when hovering edges,
+          even with `elementsSelectable={false}`, without changing canvas pan behavior.
         */}
         <style>{`
           .react-flow__edge {
@@ -898,8 +906,7 @@ const ClarityGraphCanvasInner = ({
           <p>Canvas</p>
           <div className="flex items-center gap-3">
             <p>
-              {graphNodes.length} nodes · {connections.length} db connections ·{" "}
-              {resolvedConnections.length} AI links
+              {graphNodes.length} nodes · {resolvedConnections.length} AI links
               {loadingConnections ? " (analyzing...)" : ""}
               {connectionsError ? " (analysis failed)" : ""}
             </p>
@@ -1060,7 +1067,9 @@ const ClarityGraphCanvasInner = ({
                   <p className="text-[11px] font-semibold tracking-wider text-primary">
                     WHY CONNECTED
                   </p>
-                  <p className="text-sm mt-1">{selectedConnection.reason}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                    {selectedConnection.reason}
+                  </p>
                   <p className="text-[11px] text-muted-foreground mt-2">
                     Strength: {selectedConnection.strength}
                   </p>

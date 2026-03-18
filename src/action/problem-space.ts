@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { decideProblemSpaceClarityProgress } from "@/lib/ai";
 import { getServerSession } from "./get-session";
 
 export const getProblemSpaces = async () => {
@@ -55,6 +56,50 @@ export const createProblemSpace = async (data: any) => {
   return newProblemSpace;
 };
 
+export const updateProblemSpace = async (
+  id: string,
+  data: { title: string; description?: string | null },
+) => {
+  const session = await getServerSession();
+  const user = session?.user;
+
+  if (!user || !id) {
+    return null;
+  }
+
+  const existing = await prisma.problemSpace.findFirst({
+    where: {
+      id,
+      userId: user.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const updated = await prisma.problemSpace.update({
+    where: {
+      id,
+    },
+    data: {
+      title: data.title,
+      description: data.description ?? null,
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      updatedAt: true,
+    },
+  });
+
+  return updated;
+};
+
 export const getProblemSpaceById = async (id: string) => {
   const session = await getServerSession();
   const user = session?.user;
@@ -96,15 +141,45 @@ export const getProblemSpaceById = async (id: string) => {
           },
         },
       },
-      connections: {
-        include: {
-          fromPin: true,
-          toPin: true,
-        },
-      },
       suggestions: true,
     },
   });
+
+  if (!problemSpace) {
+    return null;
+  }
+
+  const shouldBackfillProgress =
+    (problemSpace.progress ?? 0) <= 0 &&
+    (problemSpace.fragments?.length ?? 0) > 0;
+
+  if (shouldBackfillProgress) {
+    const input = problemSpace.graphNodes
+      .map((node) => ({
+        nodeId: node.id,
+        nodeTitle: node.title,
+        fragments: node.fragments.map((fragment) => ({
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content,
+        })),
+      }))
+      .filter((node) => node.fragments.length > 0);
+
+    try {
+      const progress = await decideProblemSpaceClarityProgress(input);
+
+      if (progress !== (problemSpace.progress ?? 0)) {
+        await prisma.problemSpace.update({
+          where: { id: problemSpace.id },
+          data: { progress },
+        });
+        problemSpace.progress = progress;
+      }
+    } catch {
+      // Return the problem space even when AI scoring is unavailable.
+    }
+  }
 
   return problemSpace;
 };

@@ -1,6 +1,7 @@
 "use server";
 import { Prisma } from "@/generated/prisma";
 import prisma from "@/lib/prisma";
+import { decideProblemSpaceClarityProgress } from "@/lib/ai";
 import { singleInstanceFragmentTypes } from "@/lib/schemas";
 import { getServerSession } from "./get-session";
 
@@ -13,6 +14,40 @@ const isUniqueConstraintError = (error: unknown) => {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
   );
+};
+
+const refreshProblemSpaceProgress = async (problemSpaceId: string) => {
+  try {
+    const nodes = await prisma.graphNode.findMany({
+      where: { problemSpaceId },
+      include: {
+        fragments: {
+          select: {
+            id: true,
+            type: true,
+            content: true,
+          },
+        },
+      },
+    });
+
+    const input = nodes
+      .map((node) => ({
+        nodeId: node.id,
+        nodeTitle: node.title,
+        fragments: node.fragments,
+      }))
+      .filter((node) => node.fragments.length > 0);
+
+    const progress = await decideProblemSpaceClarityProgress(input);
+
+    await prisma.problemSpace.update({
+      where: { id: problemSpaceId },
+      data: { progress },
+    });
+  } catch {
+    // Keep core mutations resilient even if progress scoring fails.
+  }
 };
 
 export const createFragment = async (
@@ -104,6 +139,8 @@ export const createFragment = async (
     throw error;
   }
 
+  await refreshProblemSpaceProgress(problemSpaceId);
+
   return fragment;
 };
 
@@ -185,6 +222,8 @@ export const createNode = async (
     },
   });
 
+  await refreshProblemSpaceProgress(problemSpaceId);
+
   return node;
 };
 
@@ -261,6 +300,8 @@ export const deleteNode = async (problemSpaceId: string, nodeId: string) => {
       id: node.id,
     },
   });
+
+  await refreshProblemSpaceProgress(problemSpaceId);
 
   return { success: true };
 };
@@ -343,6 +384,8 @@ export const updateFragment = async (
     throw error;
   }
 
+  await refreshProblemSpaceProgress(problemSpaceId);
+
   return updatedFragment;
 };
 
@@ -379,6 +422,8 @@ export const deleteFragment = async (
       id: fragment.id,
     },
   });
+
+  await refreshProblemSpaceProgress(problemSpaceId);
 
   return { success: true };
 };

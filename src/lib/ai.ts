@@ -7,6 +7,8 @@ const DEFAULT_WEAVING_MODEL =
   process.env.GOOGLE_AI_WEAVING_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_RELATIONSHIP_MODEL =
   process.env.GOOGLE_AI_RELATIONSHIP_MODEL ?? "gemini-2.5-pro";
+const DEFAULT_CONCLUSION_MODEL =
+  process.env.GOOGLE_AI_CONCLUSION_MODEL ?? "gemini-2.5-flash";
 
 const MAX_RELATIONSHIP_EDGES = 8;
 const QUOTE_MIN_RETRY_COOLDOWN_MS = 45_000;
@@ -94,6 +96,25 @@ export type ClarityConnectionSuggestion = {
   reason: string;
   strength: WeavingSuggestionStrength;
 };
+
+export type ProblemSpaceConclusion = {
+  conclusion: string;
+  why: string;
+  description: string;
+  suggestions: string[];
+  advice: string[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  basedOnQuestionCount: number;
+  totalQuestionCount: number;
+};
+
+const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
+  "QUESTION",
+  "IDEA",
+  "OBSERVATION",
+  "CONSTRAINS",
+  "CONCLUSION",
+];
 
 type ClarityRelationship = "CONTRADICTS" | "CLARIFIES" | "RESOLVES";
 
@@ -219,6 +240,37 @@ const extractJsonArray = (text: string): unknown[] | null => {
   }
 };
 
+const extractJsonObject = (text: string): Record<string, unknown> | null => {
+  const trimmed = text.trim();
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Recover from accidental prose wrappers.
+  }
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+
+  if (start < 0 || end < 0 || end <= start) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed.slice(start, end + 1));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
 const randomFallbackQuote = () => {
   const index = Math.floor(Math.random() * suikaFallbackQuotes.length);
   return suikaFallbackQuotes[index];
@@ -232,13 +284,53 @@ const normalizeQuoteText = (value: string) => {
     .trim();
 };
 
+const extractQuoteCandidate = (raw: string): string | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let unwrapped = trimmed;
+  if (unwrapped.startsWith("```")) {
+    unwrapped = unwrapped
+      .replace(/^```(json|text)?\n?/i, "")
+      .replace(/```$/i, "")
+      .trim();
+  }
+
+  try {
+    const parsed = JSON.parse(unwrapped) as unknown;
+
+    if (typeof parsed === "string") {
+      return normalizeQuoteText(parsed);
+    }
+
+    if (parsed && typeof parsed === "object") {
+      const record = parsed as Record<string, unknown>;
+      if (typeof record.quote === "string") {
+        return normalizeQuoteText(record.quote);
+      }
+    }
+  } catch {
+    // Non-JSON responses are allowed below.
+  }
+
+  const objectQuoteMatch =
+    /"quote"\s*:\s*"([\s\S]*?)"/i.exec(unwrapped)?.[1] ?? null;
+  if (objectQuoteMatch) {
+    return normalizeQuoteText(objectQuoteMatch);
+  }
+
+  return normalizeQuoteText(unwrapped);
+};
+
 const isUsefulQuote = (quote: string) => {
-  if (quote.length < 24 || quote.length > 220) {
+  if (quote.length < 16 || quote.length > 240) {
     return false;
   }
 
   const words = quote.split(/\s+/).filter(Boolean);
-  if (words.length < 6) {
+  if (words.length < 4) {
     return false;
   }
 
@@ -333,6 +425,162 @@ const relationStrength = (
   }
 
   return "MEDIUM";
+};
+
+const normalizeSentence = (text: string) => {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+};
+
+const trimFragmentPreview = (text: string, maxChars = 120) => {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxChars) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, maxChars - 1).trimEnd()}...`;
+};
+
+const relationshipReasonParagraph = (params: {
+  relationship: ClarityRelationship;
+  rationale: string;
+  fromNodeTitle?: string;
+  toNodeTitle?: string;
+  fromContent: string;
+  toContent: string;
+}) => {
+  const relationHeader = `${params.relationship}:`;
+  const coreReason = normalizeSentence(params.rationale);
+
+  const fromDescriptor = params.fromNodeTitle
+    ? `in ${params.fromNodeTitle}`
+    : "in the source fragment";
+  const toDescriptor = params.toNodeTitle
+    ? `in ${params.toNodeTitle}`
+    : "in the target fragment";
+
+  const contextSentence = normalizeSentence(
+    `Specifically, the claim ${fromDescriptor} ("${trimFragmentPreview(params.fromContent)}") is linked to the claim ${toDescriptor} ("${trimFragmentPreview(params.toContent)}")`,
+  );
+
+  const guidanceSentence = normalizeSentence(
+    "Use this link to verify whether the target should be strengthened, revised, or resolved based on the source evidence and intent",
+  );
+
+  return `${relationHeader} ${coreReason} ${contextSentence} ${guidanceSentence}`.trim();
+};
+
+const normalizeBullets = (value: unknown, maxItems: number) => {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0)
+    .slice(0, maxItems);
+};
+
+const fallbackProblemSpaceConclusion = (
+  input: ClarityConnectionInput[],
+): ProblemSpaceConclusion => {
+  const allFragments = input.flatMap((node) =>
+    node.fragments.map((fragment) => ({
+      nodeTitle: node.nodeTitle,
+      ...fragment,
+    })),
+  );
+
+  const questions = allFragments.filter(
+    (fragment) => fragment.type === "QUESTION",
+  );
+  const conclusionCandidates = allFragments.filter(
+    (fragment) => fragment.type === "CONCLUSION",
+  );
+
+  if (questions.length === 0) {
+    return {
+      conclusion:
+        "There is not enough explicit question framing yet to conclude this problem space confidently.",
+      why: "A conclusion is strongest when it answers clear question fragments. This space currently lacks explicit question anchors.",
+      description:
+        "Add at least 2-3 focused question fragments across your nodes, then run Conclude problem space again.",
+      suggestions: [
+        "Convert broad uncertainties into specific question fragments.",
+        "Pair each question with at least one observation or constraint.",
+        "Mark one question as the primary decision question.",
+      ],
+      advice: [
+        "Prefer one measurable question per node.",
+        "Avoid jumping to conclusions before evidence and constraints are represented.",
+      ],
+      confidence: "LOW",
+      basedOnQuestionCount: 0,
+      totalQuestionCount: 0,
+    };
+  }
+
+  const bestCandidate =
+    conclusionCandidates
+      .map((candidate) => {
+        const score = questions.reduce((total, question) => {
+          return total + tokenOverlapScore(candidate.content, question.content);
+        }, 0);
+
+        const coveredQuestions = questions.filter((question) => {
+          return tokenOverlapScore(candidate.content, question.content) >= 0.12;
+        }).length;
+
+        return {
+          candidate,
+          score,
+          coveredQuestions,
+        };
+      })
+      .sort((a, b) => {
+        if (b.coveredQuestions !== a.coveredQuestions) {
+          return b.coveredQuestions - a.coveredQuestions;
+        }
+
+        return b.score - a.score;
+      })[0] ?? null;
+
+  const pickedConclusion =
+    bestCandidate?.candidate.content.trim() ||
+    allFragments
+      .find((fragment) => fragment.type !== "QUESTION")
+      ?.content.trim() ||
+    "The available evidence suggests narrowing this problem into one decisive path and validating it quickly.";
+
+  const basedOnQuestionCount =
+    bestCandidate?.coveredQuestions ?? Math.min(1, questions.length);
+  const confidence: ProblemSpaceConclusion["confidence"] =
+    basedOnQuestionCount >= Math.max(2, Math.ceil(questions.length * 0.6))
+      ? "MEDIUM"
+      : "LOW";
+
+  return {
+    conclusion: pickedConclusion,
+    why: `This conclusion best aligns with ${basedOnQuestionCount} of ${questions.length} explicit questions by semantic overlap and fit with available constraints/observations.`,
+    description:
+      "The conclusion reflects the strongest currently-supported direction in your nodes, but you should still validate assumptions with targeted evidence.",
+    suggestions: [
+      "Turn this conclusion into a concrete next-step experiment.",
+      "Add one supporting observation and one opposing constraint to stress-test it.",
+      "Re-run conclusion after updating contradictory fragments.",
+    ],
+    advice: [
+      "Treat this as a working conclusion, not an irreversible decision.",
+      "Use short feedback loops to confirm whether the conclusion remains true.",
+    ],
+    confidence,
+    basedOnQuestionCount,
+    totalQuestionCount: questions.length,
+  };
 };
 
 const RELATIONSHIP_STOPWORDS = new Set([
@@ -670,7 +918,14 @@ const fallbackClarityConnections = (
             toNodeId: toNode.nodeId,
             fromFragmentId: from.id,
             toFragmentId: to.id,
-            reason: `${classified.relationship}: ${classified.rationale}`,
+            reason: relationshipReasonParagraph({
+              relationship: classified.relationship,
+              rationale: classified.rationale,
+              fromNodeTitle: fromNode.nodeTitle,
+              toNodeTitle: toNode.nodeTitle,
+              fromContent: from.content,
+              toContent: to.content,
+            }),
             strength: relationStrength(classified.relationship),
             score,
           });
@@ -755,26 +1010,6 @@ export const chatWithGroq = async (options: GroqChatOptions) => {
 };
 
 export const generateSuikaMotivationalQuote = async () => {
-  const now = Date.now();
-
-  if (now < quoteCircuitState.blockedUntil) {
-    const shouldLog =
-      process.env.NODE_ENV !== "production" &&
-      now - quoteCircuitState.lastLogAt > 30_000;
-
-    if (shouldLog) {
-      const secondsLeft = Math.ceil(
-        (quoteCircuitState.blockedUntil - now) / 1000,
-      );
-      console.warn(
-        `[AI_QUOTE_FALLBACK] quota cooldown active (${secondsLeft}s left)`,
-      );
-      quoteCircuitState.lastLogAt = now;
-    }
-
-    return { quote: randomFallbackQuote(), source: "fallback" as const };
-  }
-
   let lastError: Error | null = null;
 
   try {
@@ -794,10 +1029,9 @@ export const generateSuikaMotivationalQuote = async () => {
         generationConfig: {
           temperature: 0.85,
           maxOutputTokens: 96,
-          responseMimeType: "application/json",
         },
         systemInstruction:
-          "You write one-line motivational quotes for Suika. Return ONLY a valid JSON object with a single key 'quote'. Do not use markdown.",
+          "You write one-line motivational quotes for Suika. Return a single plain-text sentence only. No markdown, no list, no labels.",
       });
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -806,23 +1040,11 @@ export const generateSuikaMotivationalQuote = async () => {
             "Generate one motivational quote about finding clarity through messy thinking.",
           );
 
-          let rawText = result.response.text().trim();
+          const rawText = result.response.text().trim();
+          const candidate = extractQuoteCandidate(rawText);
 
-          if (rawText.startsWith("```")) {
-            rawText = rawText
-              .replace(/^```(json)?\n?/, "")
-              .replace(/```$/, "")
-              .trim();
-          }
-
-          const parsed = JSON.parse(rawText);
-
-          if (parsed.quote) {
-            const quote = normalizeQuoteText(parsed.quote);
-
-            if (isUsefulQuote(quote)) {
-              return { quote, source: "ai" as const };
-            }
+          if (candidate && isUsefulQuote(candidate)) {
+            return { quote: candidate, source: "ai" as const };
           }
         } catch (e) {
           lastError =
@@ -830,25 +1052,26 @@ export const generateSuikaMotivationalQuote = async () => {
 
           if (isQuotaExceededError(lastError)) {
             const parsedDelay = extractRetryDelayMs(lastError.message);
-            const retryDelayMs = isHardQuotaZeroError(lastError)
-              ? QUOTE_HARD_QUOTA_COOLDOWN_MS
-              : Math.min(
-                  QUOTE_MAX_RETRY_COOLDOWN_MS,
-                  Math.max(QUOTE_MIN_RETRY_COOLDOWN_MS, parsedDelay ?? 60_000),
-                );
+            const retryDelayMs = Math.min(
+              QUOTE_MAX_RETRY_COOLDOWN_MS,
+              Math.max(
+                QUOTE_MIN_RETRY_COOLDOWN_MS,
+                parsedDelay ??
+                  (isHardQuotaZeroError(lastError)
+                    ? QUOTE_HARD_QUOTA_COOLDOWN_MS
+                    : 60_000),
+              ),
+            );
 
+            // Record cooldown timing for logs, but continue trying alternative models.
             quoteCircuitState.blockedUntil = Date.now() + retryDelayMs;
-            break;
+            continue;
           }
 
           if (isModelNotFoundError(lastError)) {
             break;
           }
         }
-      }
-
-      if (Date.now() < quoteCircuitState.blockedUntil) {
-        break;
       }
     }
 
@@ -1010,7 +1233,9 @@ Rules:
 - No weak links.
 - Never self-link.
 - source_id and target_id must exactly match input IDs.
-- Prefer sparse, high-signal relationships.`,
+- Prefer sparse, high-signal relationships.
+- rationale must be a clear 2-4 sentence explanation in plain English.
+- rationale should explain what in the source supports/challenges/answers the target and why that matters for decision quality.`,
   });
 
   const result = await model.generateContent(
@@ -1076,12 +1301,14 @@ export const generateClarityGraphConnections = async (
     node.fragments.map((fragment) => ({
       id: fragment.id,
       node_id: node.nodeId,
+      node_title: node.nodeTitle,
       type: fragment.type,
       content: fragment.content,
     })),
   );
 
   const fragmentToNodeId = new Map(flatFragments.map((f) => [f.id, f.node_id]));
+  const fragmentById = new Map(flatFragments.map((f) => [f.id, f]));
 
   const nodeIds = input.map((node) => node.nodeId);
   const maxEdges = targetRelationshipEdgeCount(nodeIds.length);
@@ -1103,8 +1330,16 @@ export const generateClarityGraphConnections = async (
       .map((record) => {
         const fromNodeId = fragmentToNodeId.get(record.source_id);
         const toNodeId = fragmentToNodeId.get(record.target_id);
+        const fromFragment = fragmentById.get(record.source_id);
+        const toFragment = fragmentById.get(record.target_id);
 
-        if (!fromNodeId || !toNodeId || record.source_id === record.target_id) {
+        if (
+          !fromNodeId ||
+          !toNodeId ||
+          !fromFragment ||
+          !toFragment ||
+          record.source_id === record.target_id
+        ) {
           return null;
         }
 
@@ -1113,7 +1348,14 @@ export const generateClarityGraphConnections = async (
           toNodeId,
           fromFragmentId: record.source_id,
           toFragmentId: record.target_id,
-          reason: `${record.relationship}: ${record.rationale.replace(/\s+/g, " ").slice(0, 320)}`,
+          reason: relationshipReasonParagraph({
+            relationship: record.relationship,
+            rationale: record.rationale,
+            fromNodeTitle: fromFragment.node_title,
+            toNodeTitle: toFragment.node_title,
+            fromContent: fromFragment.content,
+            toContent: toFragment.content,
+          }).slice(0, 900),
           strength: relationStrength(record.relationship),
         } satisfies ClarityConnectionSuggestion;
       })
@@ -1154,5 +1396,232 @@ export const generateClarityGraphConnections = async (
     return selected.length > 0 ? selected : fallbackClarityConnections(input);
   } catch {
     return fallbackClarityConnections(input);
+  }
+};
+
+const clamp01 = (value: number) => {
+  return Math.max(0, Math.min(1, value));
+};
+
+const clampPercent = (value: number) => {
+  return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+const relationSignalWeight = (reason: string) => {
+  if (reason.startsWith("RESOLVES")) {
+    return 3;
+  }
+
+  if (reason.startsWith("CONTRADICTS")) {
+    return 2;
+  }
+
+  return 1.6;
+};
+
+// AI chooses relationships first, then we convert that signal map into a stable 0-100 clarity score.
+export const decideProblemSpaceClarityProgress = async (
+  input: ClarityConnectionInput[],
+): Promise<number> => {
+  const nodeCount = input.length;
+  const allFragments = input.flatMap((node) => node.fragments);
+  const fragmentCount = allFragments.length;
+
+  if (fragmentCount === 0) {
+    return 0;
+  }
+
+  if (fragmentCount === 1) {
+    return 12;
+  }
+
+  const suggestions = await generateClarityGraphConnections(input);
+
+  const coveredNodes = new Set<string>();
+  const coveredFragments = new Set<string>();
+  const relationCounts = {
+    resolves: 0,
+    contradicts: 0,
+    clarifies: 0,
+  };
+
+  let weightedConnectionSignal = 0;
+
+  suggestions.forEach((edge) => {
+    coveredNodes.add(edge.fromNodeId);
+    coveredNodes.add(edge.toNodeId);
+    coveredFragments.add(edge.fromFragmentId);
+    coveredFragments.add(edge.toFragmentId);
+
+    weightedConnectionSignal += relationSignalWeight(edge.reason);
+
+    if (edge.reason.startsWith("RESOLVES")) {
+      relationCounts.resolves += 1;
+      return;
+    }
+
+    if (edge.reason.startsWith("CONTRADICTS")) {
+      relationCounts.contradicts += 1;
+      return;
+    }
+
+    relationCounts.clarifies += 1;
+  });
+
+  const typeCoverage =
+    new Set(allFragments.map((fragment) => fragment.type)).size /
+    CLARITY_FRAGMENT_TYPES.length;
+  const nodeCoverage =
+    nodeCount === 0 ? 0 : coveredNodes.size / Math.max(1, nodeCount);
+  const fragmentCoverage = coveredFragments.size / fragmentCount;
+  const maxEdgeSignal = Math.max(
+    1,
+    targetRelationshipEdgeCount(Math.max(1, nodeCount)) * 3,
+  );
+  const networkSignal = clamp01(weightedConnectionSignal / maxEdgeSignal);
+
+  const questionPresence = allFragments.some(
+    (fragment) => fragment.type === "QUESTION",
+  )
+    ? 1
+    : 0;
+  const conclusionPresence = allFragments.some(
+    (fragment) => fragment.type === "CONCLUSION",
+  )
+    ? 1
+    : 0;
+
+  const relationTotal = Math.max(1, suggestions.length);
+  const contradictionRatio = relationCounts.contradicts / relationTotal;
+  const resolutionRatio = relationCounts.resolves / relationTotal;
+  const clarityRatio = relationCounts.clarifies / relationTotal;
+  const coherence = clamp01(
+    0.55 +
+      resolutionRatio * 0.45 +
+      clarityRatio * 0.2 -
+      contradictionRatio * 0.4,
+  );
+
+  const perNodeDensity = clamp01(fragmentCount / Math.max(3, nodeCount * 3));
+
+  const normalizedScore =
+    typeCoverage * 0.2 +
+    nodeCoverage * 0.2 +
+    fragmentCoverage * 0.15 +
+    networkSignal * 0.15 +
+    coherence * 0.15 +
+    questionPresence * 0.07 +
+    conclusionPresence * 0.04 +
+    perNodeDensity * 0.04;
+
+  let progress = clampPercent(normalizedScore * 100);
+
+  const contentFloor = Math.min(40, 10 + fragmentCount * 3);
+  progress = Math.max(progress, contentFloor);
+
+  if (suggestions.length === 0) {
+    progress = Math.min(progress, 38);
+  }
+
+  if (fragmentCount < 4) {
+    progress = Math.min(progress, 55);
+  }
+
+  return clampPercent(progress);
+};
+
+export const generateProblemSpaceConclusion = async (
+  input: ClarityConnectionInput[],
+): Promise<ProblemSpaceConclusion> => {
+  if (input.length === 0) {
+    return fallbackProblemSpaceConclusion(input);
+  }
+
+  const payload = input
+    .map((node) => ({
+      nodeId: node.nodeId,
+      nodeTitle: node.nodeTitle,
+      fragments: node.fragments.map((fragment) => ({
+        id: fragment.id,
+        type: fragment.type,
+        content: fragment.content,
+      })),
+    }))
+    .filter((node) => node.fragments.length > 0);
+
+  try {
+    const model = getGemini().getGenerativeModel({
+      model: DEFAULT_CONCLUSION_MODEL,
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+      systemInstruction:
+        "You are Suika Conclude AI. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Return only valid JSON.",
+    });
+
+    const result = await model.generateContent(
+      `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit.\nReturn JSON with keys: conclusion, why, description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
+    );
+
+    const parsed = extractJsonObject(result.response.text());
+
+    if (!parsed) {
+      return fallbackProblemSpaceConclusion(input);
+    }
+
+    const conclusion =
+      typeof parsed.conclusion === "string" ? parsed.conclusion.trim() : "";
+    const why = typeof parsed.why === "string" ? parsed.why.trim() : "";
+    const description =
+      typeof parsed.description === "string" ? parsed.description.trim() : "";
+
+    const confidenceRaw =
+      typeof parsed.confidence === "string"
+        ? parsed.confidence.trim().toUpperCase()
+        : "MEDIUM";
+    const confidence: ProblemSpaceConclusion["confidence"] =
+      confidenceRaw === "HIGH" || confidenceRaw === "LOW"
+        ? confidenceRaw
+        : "MEDIUM";
+
+    const basedOnQuestionCount =
+      typeof parsed.basedOnQuestionCount === "number" &&
+      Number.isFinite(parsed.basedOnQuestionCount)
+        ? Math.max(0, Math.round(parsed.basedOnQuestionCount))
+        : 0;
+
+    const totalQuestionCount =
+      typeof parsed.totalQuestionCount === "number" &&
+      Number.isFinite(parsed.totalQuestionCount)
+        ? Math.max(0, Math.round(parsed.totalQuestionCount))
+        : 0;
+
+    const suggestions = normalizeBullets(parsed.suggestions, 4);
+    const advice = normalizeBullets(parsed.advice, 4);
+
+    if (!conclusion || !why || !description) {
+      return fallbackProblemSpaceConclusion(input);
+    }
+
+    return {
+      conclusion: conclusion.slice(0, 600),
+      why: why.slice(0, 600),
+      description: description.slice(0, 600),
+      suggestions:
+        suggestions.length > 0
+          ? suggestions
+          : fallbackProblemSpaceConclusion(input).suggestions,
+      advice:
+        advice.length > 0
+          ? advice
+          : fallbackProblemSpaceConclusion(input).advice,
+      confidence,
+      basedOnQuestionCount,
+      totalQuestionCount,
+    };
+  } catch {
+    return fallbackProblemSpaceConclusion(input);
   }
 };

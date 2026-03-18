@@ -3,14 +3,13 @@ import React from "react";
 import { motion } from "framer-motion";
 import {
   AiSuggestion,
-  GraphConnection,
   GraphNode,
   ProblemSpace,
   Fragment,
   User,
 } from "@/generated/prisma";
 import Link from "next/link";
-import { ArrowLeft, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import LoadingSpinner from "../global/loading-spinner";
 import { Button } from "../ui/button";
@@ -18,13 +17,14 @@ import CreateNodeForm from "../forms/create-node-form";
 import ProblemSpaceNodes from "./node";
 import ClarityGraphCanvas from "@/components/problem-space/clarity-graph-canvas";
 import AiWeavingPanel from "./ai-weaving-panel";
+import ConcludeProblemSpacePanel from "./conclude-problem-space-panel";
+import EditProblemSpaceForm from "../forms/edit-problem-space-form";
 
 type Props = {
   user: User;
   problemSpace: ProblemSpace & {
     fragments?: Fragment[];
     graphNodes?: GraphNode[];
-    connections?: GraphConnection[];
     suggestions?: AiSuggestion[];
   };
 };
@@ -32,14 +32,12 @@ type Props = {
 const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
   const [aiOpen, setAiOpen] = React.useState(true);
   const [createNodeOpen, setCreateNodeOpen] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
   const fragments = Array.isArray(problemSpace.fragments)
     ? problemSpace.fragments
     : null;
   const graphNodes = Array.isArray(problemSpace.graphNodes)
     ? problemSpace.graphNodes
-    : null;
-  const graphConnections = Array.isArray(problemSpace.connections)
-    ? problemSpace.connections
     : null;
   const suggestions = Array.isArray(problemSpace.suggestions)
     ? problemSpace.suggestions
@@ -75,18 +73,37 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
           </div>
         </div>
 
-        <button
-          onClick={() => setAiOpen(!aiOpen)}
-          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
-            aiOpen
-              ? "bg-sage text-background"
-              : "bg-card text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          AI Weaving
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setEditOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Details
+          </Button>
+          <button
+            onClick={() => setAiOpen(!aiOpen)}
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+              aiOpen
+                ? "bg-sage text-background"
+                : "bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Weaving
+          </button>
+        </div>
       </div>
+
+      <EditProblemSpaceForm
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        problemSpaceId={problemSpace.id}
+        initialTitle={problemSpace.title}
+        initialDescription={problemSpace.description}
+      />
 
       {/* tabs */}
       <Tabs defaultValue="Nodes" className="flex-1 gap-0">
@@ -98,6 +115,8 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
             />
           </div>
         ) : null}
+
+        <ConcludeProblemSpacePanel problemSpaceId={problemSpace.id} />
 
         <div className="px-5 py-3 border-b border-border/40 bg-background shrink-0">
           <TabsList className="w-full flex mx-auto">
@@ -144,7 +163,7 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
         </TabsContent>
 
         <TabsContent value="clarity-graph" className="p-5">
-          {graphNodes === null || graphConnections === null ? (
+          {graphNodes === null ? (
             <LoadingSpinner
               variant="inline"
               label="Loading Clarity Graph..."
@@ -155,7 +174,6 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
               problemSpaceId={problemSpace.id}
               graphNodes={graphNodes}
               fragments={fragments || []}
-              connections={graphConnections}
             />
           )}
         </TabsContent>
