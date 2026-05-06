@@ -33,11 +33,12 @@ const quotes = [
 
 const formatPageTitle = (pathname: string) => {
   const segments = pathname.split("/").filter(Boolean);
-  if (segments.length < 2) return "Workspace";
+  if (segments.length === 0) return "Workspace";
 
-  const section = segments[1];
+  const section = segments[0];
 
   if (section === "dashboard") return "Dashboard";
+  if (section === "journal") return "Journal";
   if (section === "settings") return "Settings";
   if (section === "problem-spaces" && segments.length > 2) {
     return "Problem Space";

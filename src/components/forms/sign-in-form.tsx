@@ -76,7 +76,7 @@ const SignInForm = () => {
       } catch (e) {
         // ignore (SSR safety not needed here in client component)
       }
-      router.push(`/${user?.id}/dashboard`);
+      router.push(`/dashboard`);
     }
   };
 
@@ -88,7 +88,7 @@ const SignInForm = () => {
 
     const { error } = await authClient.signIn.social({
       provider,
-      callbackURL: `/${session?.user?.id}/dashboard`,
+      callbackURL: `/dashboard`,
     });
 
     setIsLoading(false);

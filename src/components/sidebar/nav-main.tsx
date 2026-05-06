@@ -43,25 +43,25 @@ const Navmain = ({ userId }: Props) => {
   const items = [
     {
       label: "Dashboard",
-      href: `/${userId}/dashboard`,
+      href: `/dashboard/${userId}`,
       icon: MdDashboard,
     },
 
     {
       label: "Problem Spaces",
-      href: `/${userId}/problem-spaces`,
+      href: `/problem-spaces/${userId}`,
       icon: HiMiniCubeTransparent,
     },
 
     {
       label: "Journal",
-      href: `/${userId}/journal`,
+      href: `/journal/${userId}`,
       icon: MdAutoStories,
     },
 
     {
       label: "Settings",
-      href: `/${userId}/settings`,
+      href: `/settings/${userId}`,
       icon: IoIosSettings,
     },
   ];

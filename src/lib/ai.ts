@@ -1,4 +1,7 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import OpenAI from "openai";
+
+const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
 
 const DEFAULT_CHAT_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_QUOTE_MODEL =
@@ -9,6 +12,18 @@ const DEFAULT_RELATIONSHIP_MODEL =
   process.env.GOOGLE_AI_RELATIONSHIP_MODEL ?? "gemini-2.5-pro";
 const DEFAULT_CONCLUSION_MODEL =
   process.env.GOOGLE_AI_CONCLUSION_MODEL ?? "gemini-2.5-flash";
+const DEFAULT_NVIDIA_MODEL =
+  process.env.NVIDIA_AI_MODEL ?? "meta/llama-3.1-8b-instruct";
+const DEFAULT_NVIDIA_CHAT_MODEL =
+  process.env.NVIDIA_AI_CHAT_MODEL ?? DEFAULT_NVIDIA_MODEL;
+const DEFAULT_NVIDIA_WEAVING_MODEL =
+  process.env.NVIDIA_AI_WEAVING_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+const DEFAULT_NVIDIA_RELATIONSHIP_MODEL =
+  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+const DEFAULT_NVIDIA_CONCLUSION_MODEL =
+  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+const NVIDIA_THINKING_MODE =
+  (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
 
 const MAX_RELATIONSHIP_EDGES = 8;
 const QUOTE_MIN_RETRY_COOLDOWN_MS = 45_000;
@@ -211,6 +226,458 @@ const getGemini = () => {
   }
 
   return new GoogleGenerativeAI(apiKey);
+};
+
+const shouldUseNvidia = () => ACTIVE_AI_PROVIDER !== "gemini";
+
+const logActiveAiProvider = () => {
+  const globalRef = globalThis as typeof globalThis & {
+    __suikaAiProviderLogged?: boolean;
+  };
+
+  if (globalRef.__suikaAiProviderLogged) {
+    return;
+  }
+
+  const provider = shouldUseNvidia() ? "nvidia" : "gemini";
+  console.log(`[AI_PROVIDER] active=${provider}`);
+  globalRef.__suikaAiProviderLogged = true;
+};
+
+logActiveAiProvider();
+
+const getNvidiaClient = () => {
+  return new OpenAI({
+    apiKey: getNvidiaApiKey(),
+    baseURL: "https://integrate.api.nvidia.com/v1",
+  });
+};
+
+const getNvidiaApiKey = () => {
+  const readApiKey = () => {
+    return (process.env.NVIDIA_API_KEY ?? process.env.NV_API_KEY)?.trim();
+  };
+
+  let apiKey = readApiKey();
+
+  if (!apiKey) {
+    // Some runtimes do not eagerly load .env for ad-hoc server execution.
+    const dotenv = require("dotenv") as typeof import("dotenv");
+    dotenv.config({ path: ".env.local", override: false });
+    dotenv.config({ path: ".env", override: false });
+    apiKey = readApiKey();
+  }
+
+  if (!apiKey) {
+    throw new Error(
+      "Missing Nvidia API key. Set NVIDIA_API_KEY or NV_API_KEY.",
+    );
+  }
+
+  return apiKey;
+};
+
+type NvidiaMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+type NvidiaChatCompletionOptions = {
+  messages: NvidiaMessage[];
+  maxTokens: number;
+  temperature: number;
+  model?: string;
+};
+
+const extractNvidiaSdkText = (content: unknown): string => {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") {
+        return "";
+      }
+
+      const maybeText = (part as { text?: unknown }).text;
+      return typeof maybeText === "string" ? maybeText : "";
+    })
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+};
+
+const nvidiaChatCompletion = async ({
+  messages,
+  maxTokens,
+  temperature,
+  model = DEFAULT_NVIDIA_MODEL,
+}: NvidiaChatCompletionOptions): Promise<string> => {
+  const requestCompletion = async (thinking: boolean) => {
+    const completion = await getNvidiaClient().chat.completions.create({
+      model,
+      messages,
+      temperature,
+      top_p: 0.95,
+      max_tokens: maxTokens,
+      stream: false,
+      ...(thinking ? { chat_template_kwargs: { thinking: true } } : {}),
+    } as any);
+
+    const content = completion.choices?.[0]?.message?.content;
+    return extractNvidiaSdkText(content);
+  };
+
+  const first = await requestCompletion(NVIDIA_THINKING_MODE);
+  if (first) {
+    return first;
+  }
+
+  if (NVIDIA_THINKING_MODE) {
+    const second = await requestCompletion(false);
+    if (second) {
+      return second;
+    }
+  }
+
+  throw new Error("No assistant response returned by Nvidia model.");
+};
+
+const chatWithNvidia = async ({
+  messages,
+  maxTokens = 512,
+  temperature = 0.7,
+}: GroqChatOptions) => {
+  const nvidiaMessages = messages
+    .map((message) => {
+      if (message.role === "assistant") {
+        return {
+          role: "assistant" as const,
+          content: message.content,
+        };
+      }
+
+      return {
+        role: message.role,
+        content: message.content,
+      };
+    })
+    .filter((message) => message.content.trim().length > 0);
+
+  if (nvidiaMessages.length === 0) {
+    throw new Error("At least one user or assistant message is required.");
+  }
+
+  return nvidiaChatCompletion({
+    messages: nvidiaMessages,
+    maxTokens,
+    temperature,
+    model: DEFAULT_NVIDIA_CHAT_MODEL,
+  });
+};
+
+const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
+  quote: string;
+  source: "ai";
+}> => {
+  const prompt =
+    "You write one-line motivational quotes for Suika. Return exactly one plain-text sentence only. No markdown, no labels, no list.";
+
+  const raw = await nvidiaChatCompletion({
+    messages: [
+      { role: "system", content: prompt },
+      {
+        role: "user",
+        content:
+          "Generate one motivational quote about finding clarity through messy thinking.",
+      },
+    ],
+    maxTokens: 96,
+    temperature: 0.85,
+    model: DEFAULT_NVIDIA_CHAT_MODEL,
+  });
+
+  const candidate = extractQuoteCandidate(raw);
+
+  if (!candidate || !isUsefulQuote(candidate)) {
+    throw new Error("Nvidia model returned an unusable quote.");
+  }
+
+  return { quote: candidate as string, source: "ai" as const };
+};
+
+const generateSuikaWeavingSuggestionsWithNvidia = async (
+  inputs: WeavingSuggestionInput[],
+): Promise<WeavingSuggestion[]> => {
+  const systemInstruction =
+    "You are Suika AI Weaving focused on diagnostics. Return only a JSON array. Use only node titles and fragment ids from input.";
+
+  const text = await nvidiaChatCompletion({
+    messages: [
+      { role: "system", content: systemInstruction },
+      {
+        role: "user",
+        content: `Analyze nodes and generate up to 8 suggestions:\n${JSON.stringify(inputs, null, 2)}\n\nReturn JSON array entries with keys: kind, nodeTitle, focusFragmentId, reason, recommendation, rationale, strength.`,
+      },
+    ],
+    maxTokens: 2048,
+    temperature: 0.2,
+    model: DEFAULT_NVIDIA_WEAVING_MODEL,
+  });
+
+  const parsed = extractJsonArray(text);
+
+  if (!parsed) {
+    return fallbackWeavingSuggestions(inputs);
+  }
+
+  const nodeByTitle = new Map(
+    inputs.map((item) => [item.title.trim().toLowerCase(), item]),
+  );
+
+  const normalized = parsed
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as {
+        kind?: unknown;
+        nodeTitle?: unknown;
+        focusFragmentId?: unknown;
+        reason?: unknown;
+        recommendation?: unknown;
+        rationale?: unknown;
+        strength?: unknown;
+      };
+
+      if (
+        (record.kind !== "MISSING_QUESTION" &&
+          record.kind !== "EVIDENCE_GAP") ||
+        typeof record.nodeTitle !== "string" ||
+        typeof record.focusFragmentId !== "string" ||
+        typeof record.reason !== "string" ||
+        typeof record.recommendation !== "string" ||
+        typeof record.rationale !== "string"
+      ) {
+        return null;
+      }
+
+      return {
+        fromTitle: record.nodeTitle.trim(),
+        toTitle: record.kind,
+        reason: record.reason.trim().slice(0, 180),
+        strength: normalizeStrength(String(record.strength ?? "MEDIUM")),
+        focusFragmentId: record.focusFragmentId.trim(),
+        recommendation: record.recommendation.trim().slice(0, 220),
+        rationale: record.rationale.trim().slice(0, 180),
+      } satisfies WeavingSuggestion;
+    })
+    .filter((item): item is WeavingSuggestion => {
+      if (!item) {
+        return false;
+      }
+
+      const node = nodeByTitle.get(item.fromTitle.toLowerCase());
+      if (!node) {
+        return false;
+      }
+
+      return node.fragments.some(
+        (fragment) => fragment.id === item.focusFragmentId,
+      );
+    });
+
+  if (normalized.length === 0) {
+    return fallbackWeavingSuggestions(inputs);
+  }
+
+  const deduped = Array.from(
+    new Map(
+      normalized.map((item) => [
+        `${item.fromTitle.toLowerCase()}::${item.toTitle}::${item.recommendation.toLowerCase()}`,
+        item,
+      ]),
+    ).values(),
+  );
+
+  return deduped.slice(0, 8);
+};
+
+const analyzeFragmentRelationshipsWithNvidia = async (
+  fragments: Array<{
+    id: string;
+    type: FragmentType;
+    content: string;
+  }>,
+): Promise<RelationshipRecord[]> => {
+  const systemInstruction = `You are the analytical reasoning engine for Suika.
+Analyze provided fragments and map strong logical relationships.
+Relationship definitions:
+- CONTRADICTS: source blocks or invalidates target.
+- CLARIFIES: source provides evidence/context for target.
+- RESOLVES: source answer/decision resolves target uncertainty.
+Rules:
+- No weak links.
+- Never self-link.
+- source_id and target_id must exactly match input IDs.
+- Prefer sparse, high-signal relationships.
+- rationale must be a clear 2-4 sentence explanation in plain English.
+- rationale should explain what in the source supports/challenges/answers the target and why that matters for decision quality.
+Return only JSON array objects with keys: source_id, target_id, relationship, rationale.`;
+
+  const text = await nvidiaChatCompletion({
+    messages: [
+      { role: "system", content: systemInstruction },
+      {
+        role: "user",
+        content: `Analyze fragments and return relationships:\n${JSON.stringify(fragments, null, 2)}`,
+      },
+    ],
+    maxTokens: 4096,
+    temperature: 0,
+    model: DEFAULT_NVIDIA_RELATIONSHIP_MODEL,
+  });
+
+  const parsed = extractJsonArray(text);
+
+  if (!parsed) {
+    return [];
+  }
+
+  return parsed
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as {
+        source_id?: unknown;
+        target_id?: unknown;
+        relationship?: unknown;
+        rationale?: unknown;
+      };
+
+      if (
+        typeof record.source_id !== "string" ||
+        typeof record.target_id !== "string" ||
+        typeof record.relationship !== "string" ||
+        typeof record.rationale !== "string"
+      ) {
+        return null;
+      }
+
+      const relationship = record.relationship.trim().toUpperCase();
+
+      if (
+        relationship !== "CONTRADICTS" &&
+        relationship !== "CLARIFIES" &&
+        relationship !== "RESOLVES"
+      ) {
+        return null;
+      }
+
+      return {
+        source_id: record.source_id.trim(),
+        target_id: record.target_id.trim(),
+        relationship,
+        rationale: record.rationale.trim(),
+      } satisfies RelationshipRecord;
+    })
+    .filter((item): item is RelationshipRecord => Boolean(item));
+};
+
+const generateProblemSpaceConclusionWithNvidia = async (
+  input: ClarityConnectionInput[],
+): Promise<ProblemSpaceConclusion> => {
+  const payload = input
+    .map((node) => ({
+      nodeId: node.nodeId,
+      nodeTitle: node.nodeTitle,
+      fragments: node.fragments.map((fragment) => ({
+        id: fragment.id,
+        type: fragment.type,
+        content: fragment.content,
+      })),
+    }))
+    .filter((node) => node.fragments.length > 0);
+
+  const text = await nvidiaChatCompletion({
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are Suika Conclude AI. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Return only valid JSON.",
+      },
+      {
+        role: "user",
+        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit.\nReturn JSON with keys: conclusion, why, description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
+      },
+    ],
+    maxTokens: 2048,
+    temperature: 0.2,
+    model: DEFAULT_NVIDIA_CONCLUSION_MODEL,
+  });
+
+  const parsed = extractJsonObject(text);
+
+  if (!parsed) {
+    return fallbackProblemSpaceConclusion(input);
+  }
+
+  const conclusion =
+    typeof parsed.conclusion === "string" ? parsed.conclusion.trim() : "";
+  const why = typeof parsed.why === "string" ? parsed.why.trim() : "";
+  const description =
+    typeof parsed.description === "string" ? parsed.description.trim() : "";
+
+  const confidenceRaw =
+    typeof parsed.confidence === "string"
+      ? parsed.confidence.trim().toUpperCase()
+      : "MEDIUM";
+  const confidence: ProblemSpaceConclusion["confidence"] =
+    confidenceRaw === "HIGH" || confidenceRaw === "LOW"
+      ? confidenceRaw
+      : "MEDIUM";
+
+  const basedOnQuestionCount =
+    typeof parsed.basedOnQuestionCount === "number" &&
+    Number.isFinite(parsed.basedOnQuestionCount)
+      ? Math.max(0, Math.round(parsed.basedOnQuestionCount))
+      : 0;
+
+  const totalQuestionCount =
+    typeof parsed.totalQuestionCount === "number" &&
+    Number.isFinite(parsed.totalQuestionCount)
+      ? Math.max(0, Math.round(parsed.totalQuestionCount))
+      : 0;
+
+  const suggestions = normalizeBullets(parsed.suggestions, 4);
+  const advice = normalizeBullets(parsed.advice, 4);
+
+  if (!conclusion || !why || !description) {
+    return fallbackProblemSpaceConclusion(input);
+  }
+
+  return {
+    conclusion: conclusion.slice(0, 600),
+    why: why.slice(0, 600),
+    description: description.slice(0, 600),
+    suggestions:
+      suggestions.length > 0
+        ? suggestions
+        : fallbackProblemSpaceConclusion(input).suggestions,
+    advice:
+      advice.length > 0 ? advice : fallbackProblemSpaceConclusion(input).advice,
+    confidence,
+    basedOnQuestionCount,
+    totalQuestionCount,
+  };
 };
 
 const extractJsonArray = (text: string): unknown[] | null => {
@@ -1006,84 +1473,13 @@ export const chatWithGemini = async ({
 
 // Backward-compatible export name.
 export const chatWithGroq = async (options: GroqChatOptions) => {
-  return chatWithGemini(options);
+  // Gemini path intentionally disabled. Use Nvidia for all runtime chat calls.
+  return chatWithNvidia(options);
 };
 
 export const generateSuikaMotivationalQuote = async () => {
-  let lastError: Error | null = null;
-
   try {
-    const gemini = getGemini();
-
-    const candidateModels = Array.from(
-      new Set([
-        DEFAULT_QUOTE_MODEL,
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-      ]),
-    );
-
-    for (const modelName of candidateModels) {
-      const model = gemini.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          temperature: 0.85,
-          maxOutputTokens: 96,
-        },
-        systemInstruction:
-          "You write one-line motivational quotes for Suika. Return a single plain-text sentence only. No markdown, no list, no labels.",
-      });
-
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const result = await model.generateContent(
-            "Generate one motivational quote about finding clarity through messy thinking.",
-          );
-
-          const rawText = result.response.text().trim();
-          const candidate = extractQuoteCandidate(rawText);
-
-          if (candidate && isUsefulQuote(candidate)) {
-            return { quote: candidate, source: "ai" as const };
-          }
-        } catch (e) {
-          lastError =
-            e instanceof Error ? e : new Error("Parse/Validation failed");
-
-          if (isQuotaExceededError(lastError)) {
-            const parsedDelay = extractRetryDelayMs(lastError.message);
-            const retryDelayMs = Math.min(
-              QUOTE_MAX_RETRY_COOLDOWN_MS,
-              Math.max(
-                QUOTE_MIN_RETRY_COOLDOWN_MS,
-                parsedDelay ??
-                  (isHardQuotaZeroError(lastError)
-                    ? QUOTE_HARD_QUOTA_COOLDOWN_MS
-                    : 60_000),
-              ),
-            );
-
-            // Record cooldown timing for logs, but continue trying alternative models.
-            quoteCircuitState.blockedUntil = Date.now() + retryDelayMs;
-            continue;
-          }
-
-          if (isModelNotFoundError(lastError)) {
-            break;
-          }
-        }
-      }
-    }
-
-    if (process.env.NODE_ENV !== "production") {
-      const details = compactErrorMessage(
-        lastError?.message ?? "No valid quote returned by model",
-      );
-      console.warn(`[AI_QUOTE_FALLBACK] ${details}`);
-      quoteCircuitState.lastLogAt = Date.now();
-    }
-
-    return { quote: randomFallbackQuote(), source: "fallback" as const };
+    return await generateSuikaMotivationalQuoteWithNvidia();
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       const message =
@@ -1106,99 +1502,7 @@ export const generateSuikaWeavingSuggestions = async (
   }
 
   try {
-    const model = getGemini().getGenerativeModel({
-      model: DEFAULT_WEAVING_MODEL,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: weavingSchema as any,
-        temperature: 0.2,
-        maxOutputTokens: 2048,
-      },
-      systemInstruction:
-        "You are Suika AI Weaving focused on diagnostics. Return only a JSON array following the schema. Use only node titles and fragment ids from input.",
-    });
-
-    const result = await model.generateContent(
-      `Analyze nodes and generate up to 8 suggestions:\n${JSON.stringify(inputs, null, 2)}`,
-    );
-
-    const parsed = extractJsonArray(result.response.text());
-
-    if (!parsed) {
-      return fallbackWeavingSuggestions(inputs);
-    }
-
-    const nodeByTitle = new Map(
-      inputs.map((item) => [item.title.trim().toLowerCase(), item]),
-    );
-
-    const normalized = parsed
-      .map((entry) => {
-        if (!entry || typeof entry !== "object") {
-          return null;
-        }
-
-        const record = entry as {
-          kind?: unknown;
-          nodeTitle?: unknown;
-          focusFragmentId?: unknown;
-          reason?: unknown;
-          recommendation?: unknown;
-          rationale?: unknown;
-          strength?: unknown;
-        };
-
-        if (
-          (record.kind !== "MISSING_QUESTION" &&
-            record.kind !== "EVIDENCE_GAP") ||
-          typeof record.nodeTitle !== "string" ||
-          typeof record.focusFragmentId !== "string" ||
-          typeof record.reason !== "string" ||
-          typeof record.recommendation !== "string" ||
-          typeof record.rationale !== "string"
-        ) {
-          return null;
-        }
-
-        return {
-          fromTitle: record.nodeTitle.trim(),
-          toTitle: record.kind,
-          reason: record.reason.trim().slice(0, 180),
-          strength: normalizeStrength(String(record.strength ?? "MEDIUM")),
-          focusFragmentId: record.focusFragmentId.trim(),
-          recommendation: record.recommendation.trim().slice(0, 220),
-          rationale: record.rationale.trim().slice(0, 180),
-        } satisfies WeavingSuggestion;
-      })
-      .filter((item): item is WeavingSuggestion => {
-        if (!item) {
-          return false;
-        }
-
-        const node = nodeByTitle.get(item.fromTitle.toLowerCase());
-        if (!node) {
-          return false;
-        }
-
-        return node.fragments.some(
-          (fragment) => fragment.id === item.focusFragmentId,
-        );
-      });
-
-    if (normalized.length === 0) {
-      return fallbackWeavingSuggestions(inputs);
-    }
-
-    const deduped = Array.from(
-      new Map(
-        normalized.map((item) => [
-          `${item.fromTitle.toLowerCase()}::${item.toTitle}::${item.recommendation.toLowerCase()}`,
-          item,
-        ]),
-      ).values(),
-    );
-
-    return deduped.slice(0, 8);
+    return await generateSuikaWeavingSuggestionsWithNvidia(inputs);
   } catch {
     return fallbackWeavingSuggestions(inputs);
   }
@@ -1215,79 +1519,7 @@ export const analyzeFragmentRelationships = async (
     return [];
   }
 
-  const model = getGemini().getGenerativeModel({
-    model: DEFAULT_RELATIONSHIP_MODEL,
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: relationshipSchema as any,
-      temperature: 0.1,
-      maxOutputTokens: 4096,
-    },
-    systemInstruction: `You are the analytical reasoning engine for Suika.
-Analyze provided fragments and map strong logical relationships.
-Relationship definitions:
-- CONTRADICTS: source blocks or invalidates target.
-- CLARIFIES: source provides evidence/context for target.
-- RESOLVES: source answer/decision resolves target uncertainty.
-Rules:
-- No weak links.
-- Never self-link.
-- source_id and target_id must exactly match input IDs.
-- Prefer sparse, high-signal relationships.
-- rationale must be a clear 2-4 sentence explanation in plain English.
-- rationale should explain what in the source supports/challenges/answers the target and why that matters for decision quality.`,
-  });
-
-  const result = await model.generateContent(
-    `Analyze fragments and return relationships:\n${JSON.stringify(fragments, null, 2)}`,
-  );
-
-  const parsed = extractJsonArray(result.response.text());
-
-  if (!parsed) {
-    return [];
-  }
-
-  return parsed
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-
-      const record = entry as {
-        source_id?: unknown;
-        target_id?: unknown;
-        relationship?: unknown;
-        rationale?: unknown;
-      };
-
-      if (
-        typeof record.source_id !== "string" ||
-        typeof record.target_id !== "string" ||
-        typeof record.relationship !== "string" ||
-        typeof record.rationale !== "string"
-      ) {
-        return null;
-      }
-
-      const relationship = record.relationship.trim().toUpperCase();
-
-      if (
-        relationship !== "CONTRADICTS" &&
-        relationship !== "CLARIFIES" &&
-        relationship !== "RESOLVES"
-      ) {
-        return null;
-      }
-
-      return {
-        source_id: record.source_id.trim(),
-        target_id: record.target_id.trim(),
-        relationship,
-        rationale: record.rationale.trim(),
-      } satisfies RelationshipRecord;
-    })
-    .filter((item): item is RelationshipRecord => Boolean(item));
+  return analyzeFragmentRelationshipsWithNvidia(fragments);
 };
 
 export const generateClarityGraphConnections = async (
@@ -1537,90 +1769,8 @@ export const generateProblemSpaceConclusion = async (
     return fallbackProblemSpaceConclusion(input);
   }
 
-  const payload = input
-    .map((node) => ({
-      nodeId: node.nodeId,
-      nodeTitle: node.nodeTitle,
-      fragments: node.fragments.map((fragment) => ({
-        id: fragment.id,
-        type: fragment.type,
-        content: fragment.content,
-      })),
-    }))
-    .filter((node) => node.fragments.length > 0);
-
   try {
-    const model = getGemini().getGenerativeModel({
-      model: DEFAULT_CONCLUSION_MODEL,
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-        maxOutputTokens: 2048,
-      },
-      systemInstruction:
-        "You are Suika Conclude AI. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Return only valid JSON.",
-    });
-
-    const result = await model.generateContent(
-      `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit.\nReturn JSON with keys: conclusion, why, description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
-    );
-
-    const parsed = extractJsonObject(result.response.text());
-
-    if (!parsed) {
-      return fallbackProblemSpaceConclusion(input);
-    }
-
-    const conclusion =
-      typeof parsed.conclusion === "string" ? parsed.conclusion.trim() : "";
-    const why = typeof parsed.why === "string" ? parsed.why.trim() : "";
-    const description =
-      typeof parsed.description === "string" ? parsed.description.trim() : "";
-
-    const confidenceRaw =
-      typeof parsed.confidence === "string"
-        ? parsed.confidence.trim().toUpperCase()
-        : "MEDIUM";
-    const confidence: ProblemSpaceConclusion["confidence"] =
-      confidenceRaw === "HIGH" || confidenceRaw === "LOW"
-        ? confidenceRaw
-        : "MEDIUM";
-
-    const basedOnQuestionCount =
-      typeof parsed.basedOnQuestionCount === "number" &&
-      Number.isFinite(parsed.basedOnQuestionCount)
-        ? Math.max(0, Math.round(parsed.basedOnQuestionCount))
-        : 0;
-
-    const totalQuestionCount =
-      typeof parsed.totalQuestionCount === "number" &&
-      Number.isFinite(parsed.totalQuestionCount)
-        ? Math.max(0, Math.round(parsed.totalQuestionCount))
-        : 0;
-
-    const suggestions = normalizeBullets(parsed.suggestions, 4);
-    const advice = normalizeBullets(parsed.advice, 4);
-
-    if (!conclusion || !why || !description) {
-      return fallbackProblemSpaceConclusion(input);
-    }
-
-    return {
-      conclusion: conclusion.slice(0, 600),
-      why: why.slice(0, 600),
-      description: description.slice(0, 600),
-      suggestions:
-        suggestions.length > 0
-          ? suggestions
-          : fallbackProblemSpaceConclusion(input).suggestions,
-      advice:
-        advice.length > 0
-          ? advice
-          : fallbackProblemSpaceConclusion(input).advice,
-      confidence,
-      basedOnQuestionCount,
-      totalQuestionCount,
-    };
+    return await generateProblemSpaceConclusionWithNvidia(input);
   } catch {
     return fallbackProblemSpaceConclusion(input);
   }

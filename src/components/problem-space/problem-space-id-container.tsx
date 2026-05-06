@@ -54,7 +54,7 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
       <div className="px-5 py-3 border-b border-border/40 flex items-center justify-between bg-background shrink-0">
         <div className="flex items-center gap-3">
           <Link
-            href={`/${user.id}/problem-spaces`}
+            href={`/problem-spaces/${user.id}`}
             className="text-muted-foreground hover:text-foreground transition-colors rounded-md p-1 flex flex-row items-center gap-1"
           >
             <ArrowLeft className="h-4 w-4" />

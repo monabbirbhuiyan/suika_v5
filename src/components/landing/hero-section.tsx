@@ -35,20 +35,19 @@ const HeroSection = () => {
               className="inline-block mb-6"
             >
               <span className="px-4 py-2 rounded-full bg-[#9088B8] text-sm font-medium ">
-                From Chaos to Clarity
+                For Legal Minds
               </span>
             </motion.div>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-light text-[#2D2D2D] mb-6 leading-tight">
-              Understanding
+              Clarity is Progress
               <br />
-              <span className="text-[#8A8A8A]">is Progress</span>
+              <span className="text-[#8A8A8A]">in Legal Practice</span>
             </h1>
 
             <p className="text-lg md:text-xl text-[#6A6A6A] mb-8 leading-relaxed max-w-xl">
-              For work that happens before task exist. A calm space to watch
-              your thinking evolve, your questions clarify, and your
-              understanding grow.
+              Map matters visually. Connect precedents. Link evidence. Build
+              stronger cases through clear legal strategy and visual context.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
@@ -57,7 +56,7 @@ const HeroSection = () => {
                   size="lg"
                   className="bg-[#2D2D2D] hover:bg-[#3D3D3D] text-white rounded-full px-8 group hover:cursor-pointer"
                 >
-                  Get Started
+                  Schedule a Case Review
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
@@ -67,7 +66,7 @@ const HeroSection = () => {
                   variant="outline"
                   className="rounded-full px-8 border-gray-200 hover:border-gray-300 hover:cursor-pointer"
                 >
-                  Learn more
+                  Start for Free (Solo Tier)
                 </Button>
               </a>
             </div>

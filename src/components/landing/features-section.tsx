@@ -17,11 +17,11 @@ const FeaturesSection = (props: Props) => {
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-4xl md:text-5xl font-light text-[#2D2D2D] mb-4">
-            Built for thinking work
+            Built for Legal Thinking
           </h2>
           <p className="text-lg text-[#8A8A8A] max-w-2xl mx-auto">
-            Everything you need to make sense of complexity, without the
-            pressure of productivity theater.
+            Visualize case strategy, manage precedents, and collaborate with
+            complete clarity on every matter.
           </p>
         </motion.div>
 

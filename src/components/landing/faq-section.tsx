@@ -9,28 +9,28 @@ import { motion } from "framer-motion";
 
 const faqs = [
   {
-    q: "What exactly is a Problem Space?",
-    a: "A Problem Space is a container for a specific challenge, decision, or question you're exploring. It holds all your thoughts (Fragments), their relationships (the Clarity Graph), and any AI suggestions. Think of it as a dedicated thinking room.",
+    q: "What kind of matters can I manage?",
+    a: "Any matter you need to visualize—litigation, contracts, appeals, administrative law, and precedent research. Solo practitioners and firms of all sizes benefit from visual mapping of relationships, facts, and legal arguments.",
   },
   {
-    q: "How is this different from a notes app?",
-    a: "Notes apps store information. Suika helps you think. By connecting your thoughts visually and surfacing contradictions and patterns, Suika transforms scattered ideas into structured understanding.",
+    q: "How secure is my client data?",
+    a: "Encrypted at rest and in transit. We use SOC 2 Type II compliance standards and never train AI on your data. Enterprise plans include detailed compliance logging and role-based access controls.",
   },
   {
-    q: "Does the AI make decisions for me?",
-    a: "Never. Our AI is designed to be a gentle mirror, not an oracle. It suggests connections between your own thoughts and highlights patterns you might have missed. The understanding always comes from you.",
+    q: "Can I export matter visualizations for clients?",
+    a: "Yes. Export visualizations to share with clients and co-counsel, providing clear progress reports without exposing internal work.",
   },
   {
-    q: "Is my data private?",
-    a: "Absolutely. Your thoughts are encrypted at rest and in transit. We never train AI models on your personal data. You can export or delete everything at any time.",
+    q: "How does this differ from legal research tools?",
+    a: "Research tools help you find cases. Suika helps you organize and visualize how cases and statutes connect to your matter—it's your strategic command center.",
   },
   {
-    q: "Can I use Suika for professional work?",
-    a: "Yes. Many users use Suika for complex project decisions, research synthesis, strategic planning, and team alignment. The Life Architect plan includes collaboration features.",
+    q: "Can I collaborate with co-counsel?",
+    a: "Yes, on our Team plan. Share matters with co-counsel, set role-based permissions, and track changes—all within your workspace.",
   },
   {
-    q: "What happens when I reach clarity?",
-    a: "You'll know. Suika tracks resolution status across your fragments. When contradictions resolve and patterns emerge, you can archive the Problem Space as a completed journey of understanding.",
+    q: "Do you offer training or onboarding?",
+    a: "We provide documentation and video guides for all users. Team plan customers receive dedicated onboarding to help your firm integrate Suika into your workflow.",
   },
 ];
 

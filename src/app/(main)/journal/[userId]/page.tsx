@@ -2,6 +2,7 @@ import React from "react";
 import { getServerSession } from "@/action/get-session";
 import JournalCard from "@/components/journal/journal-card";
 import JournalHistory from "@/components/journal/journal-history";
+import { JournalProvider } from "@/components/journal/journal-context";
 
 const JournalPage = async () => {
   const session = await getServerSession();
@@ -24,8 +25,10 @@ const JournalPage = async () => {
         </p>
       </div>
 
-      <JournalCard userId={userId} />
-      <JournalHistory userId={userId} />
+      <JournalProvider userId={userId}>
+        <JournalCard userId={userId} />
+        <JournalHistory userId={userId} />
+      </JournalProvider>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import React from "react";
 import { getProblemSpaces } from "@/action/problem-space";
 import { getServerSession } from "@/action/get-session";
 import JournalCard from "@/components/journal/journal-card";
+import { JournalProvider } from "@/components/journal/journal-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,7 +155,7 @@ const DashboardPage = async () => {
               {engagementRate}% weekly engagement
             </Badge>
             <Button asChild className="rounded-full">
-              <Link href={`/${user?.id}/problem-spaces`}>
+              <Link href={`/problem-spaces/${user?.id}`}>
                 Open Problem Spaces
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -235,7 +236,7 @@ const DashboardPage = async () => {
                 <div key={space.id} className="space-y-1">
                   <div className="flex items-center justify-between gap-3">
                     <Link
-                      href={`/${user?.id}/problem-spaces/${space.id}`}
+                      href={`/problem-spaces/${user?.id}/${space.id}`}
                       className="truncate text-sm font-medium text-foreground hover:underline"
                     >
                       {space.title}
@@ -345,7 +346,9 @@ const DashboardPage = async () => {
 
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div className="xl:col-span-5">
-          <JournalCard userId={user?.id ?? "anonymous"} compact />
+          <JournalProvider userId={user?.id ?? "anonymous"}>
+            <JournalCard userId={user?.id ?? "anonymous"} compact />
+          </JournalProvider>
         </div>
 
         <Card className="xl:col-span-4">
@@ -364,7 +367,7 @@ const DashboardPage = async () => {
                   >
                     <div className="min-w-0">
                       <Link
-                        href={`/${user?.id}/problem-spaces/${space.id}`}
+                        href={`/problem-spaces/${user?.id}/${space.id}`}
                         className="block truncate text-sm font-medium text-foreground hover:underline"
                       >
                         {space.title}
@@ -402,7 +405,7 @@ const DashboardPage = async () => {
                   className="rounded-lg border border-border/70 bg-card/60 px-3 py-2"
                 >
                   <Link
-                    href={`/${user?.id}/problem-spaces/${space.id}`}
+                    href={`/problem-spaces/${user?.id}/${space.id}`}
                     className="block truncate text-sm font-medium text-foreground hover:underline"
                   >
                     {space.title}
@@ -501,7 +504,7 @@ const DashboardPage = async () => {
               </p>
             </div>
             <Button asChild variant="outline" className="rounded-full">
-              <Link href={`/${user?.id}/problem-spaces/${lastUpdatedSpace.id}`}>
+              <Link href={`/problem-spaces/${user?.id}/${lastUpdatedSpace.id}`}>
                 Continue Working
                 <ArrowRight className="h-4 w-4" />
               </Link>

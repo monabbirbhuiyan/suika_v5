@@ -1,10 +1,30 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getServerSession } from "@/action/get-session";
 import prisma from "@/lib/prisma";
 import { generateClarityGraphConnections } from "@/lib/ai";
 
 export const runtime = "nodejs";
+
+const CONNECTIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+type CachedConnections = {
+  expiresAt: number;
+  suggestions: Awaited<ReturnType<typeof generateClarityGraphConnections>>;
+};
+
+const connectionsCache = (() => {
+  const globalRef = globalThis as typeof globalThis & {
+    __suikaConnectionsCache?: Map<string, CachedConnections>;
+  };
+
+  if (!globalRef.__suikaConnectionsCache) {
+    globalRef.__suikaConnectionsCache = new Map<string, CachedConnections>();
+  }
+
+  return globalRef.__suikaConnectionsCache;
+})();
 
 const shouldLogConnections = () => {
   return (
@@ -16,6 +36,30 @@ const shouldLogConnections = () => {
 const requestSchema = z.object({
   problemSpaceId: z.string().min(1),
 });
+
+const stableInputSignature = (
+  input: Array<{
+    nodeId: string;
+    nodeTitle: string;
+    fragments: Array<{ id: string; type: string; content: string }>;
+  }>,
+) => {
+  const normalized = [...input]
+    .map((node) => ({
+      nodeId: node.nodeId,
+      nodeTitle: node.nodeTitle,
+      fragments: [...node.fragments]
+        .map((fragment) => ({
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content.trim(),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    }))
+    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+};
 
 export async function POST(request: Request) {
   try {
@@ -42,8 +86,14 @@ export async function POST(request: Request) {
       },
       include: {
         graphNodes: {
+          orderBy: {
+            id: "asc",
+          },
           include: {
             fragments: {
+              orderBy: {
+                id: "asc",
+              },
               select: {
                 id: true,
                 type: true,
@@ -67,7 +117,39 @@ export async function POST(request: Request) {
       }))
       .filter((node) => node.fragments.length > 0);
 
+    const signature = stableInputSignature(input);
+    const cached = connectionsCache.get(signature);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      const cachedCoveredNodeIds = new Set(
+        cached.suggestions.flatMap((edge) => [edge.fromNodeId, edge.toNodeId]),
+      );
+
+      return NextResponse.json({
+        suggestions: cached.suggestions,
+        meta: {
+          nodeCount: input.length,
+          fragmentCount: input.reduce(
+            (total, node) => total + node.fragments.length,
+            0,
+          ),
+          suggestionCount: cached.suggestions.length,
+          coveredNodeCount: cachedCoveredNodeIds.size,
+          uncoveredNodeCount: Math.max(
+            0,
+            input.length - cachedCoveredNodeIds.size,
+          ),
+          cached: true,
+        },
+      });
+    }
+
     const suggestions = await generateClarityGraphConnections(input);
+
+    connectionsCache.set(signature, {
+      suggestions,
+      expiresAt: Date.now() + CONNECTIONS_CACHE_TTL_MS,
+    });
 
     const coveredNodeIds = new Set<string>();
     suggestions.forEach((edge) => {
@@ -84,6 +166,7 @@ export async function POST(request: Request) {
       suggestionCount: suggestions.length,
       coveredNodeCount: coveredNodeIds.size,
       uncoveredNodeCount: Math.max(0, input.length - coveredNodeIds.size),
+      cached: false,
     };
 
     if (shouldLogConnections()) {

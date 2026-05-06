@@ -154,7 +154,7 @@ const Navbar = ({ user }: Props) => {
               <Link
                 href={
                   clientUser || user
-                    ? `/${(clientUser || user)!.id}/dashboard`
+                    ? `/dashboard/${(clientUser || user)!.id}`
                     : "/sign-up"
                 }
               >

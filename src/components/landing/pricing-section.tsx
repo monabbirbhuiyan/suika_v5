@@ -1,8 +1,7 @@
 "use client";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Check, CheckCircle2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { plans } from "@/lib/constant";
 import Link from "next/link";
@@ -24,14 +23,15 @@ const PricingSection = (props: Props) => {
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-4xl md:text-5xl font-light text-[#2D2D2D] mb-4">
-            Simple, honest pricing
+            Pricing built for every stage of legal work
           </h2>
           <p className="text-lg text-[#8A8A8A] max-w-2xl mx-auto">
-            No tricks, no pressure. Start free and upgrade when you're ready.
+            From students testing ideas to firms running full legal workflows.
+            Clear limits where needed, deeper capability when the work expands.
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3 max-w-7xl mx-auto">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
@@ -136,8 +136,9 @@ const PricingSection = (props: Props) => {
           viewport={{ once: true }}
           transition={{ delay: 0.5 }}
         >
-          All plans include unlimited thinking. No hidden costs, no time limits
-          on exploration.
+          Case law access varies by tier. Free through Pro use controlled search
+          allowances, while Legal and Legal+ unlock unlimited searches through
+          bring-your-own or company-provided licensed database access.
         </motion.p>
       </div>
     </section>

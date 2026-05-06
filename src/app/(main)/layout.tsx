@@ -9,7 +9,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const DashboardLayout = async ({ children }: Props) => {
+const MainLayout = async ({ children }: Props) => {
   const session = await getServerSession();
   const user = session?.user;
 
@@ -53,4 +53,4 @@ const DashboardLayout = async ({ children }: Props) => {
   );
 };
 
-export default DashboardLayout;
+export default MainLayout;

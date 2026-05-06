@@ -14,6 +14,7 @@ import {
   writePromptState,
 } from "@/lib/journal";
 import { useRouter } from "next/navigation";
+import { useJournalEntries } from "./journal-context";
 
 type Props = {
   userId: string;
@@ -32,6 +33,7 @@ const JournalCard = ({ userId, compact = false }: Props) => {
   const [saving, setSaving] = React.useState(false);
   const [todayCount, setTodayCount] = React.useState(0);
   const router = useRouter();
+  const { refreshEntries } = useJournalEntries();
 
   React.useEffect(() => {
     let isMounted = true;
@@ -127,9 +129,12 @@ const JournalCard = ({ userId, compact = false }: Props) => {
       setTodayCount(countToday);
       setAnswer("");
       toast.success("Journal entry saved.");
-      router.refresh();
+
+      // Refresh the entries in other components
+      refreshEntries();
     } finally {
       setSaving(false);
+      router.refresh();
     }
   };
 
@@ -205,7 +210,7 @@ const JournalCard = ({ userId, compact = false }: Props) => {
                 variant="outline"
                 className="rounded-full"
               >
-                <Link href={`/${userId}/journal`}>Open Journal</Link>
+                <Link href={`/journal/${userId}`}>Open Journal</Link>
               </Button>
             )}
             <Button

@@ -1,7 +1,7 @@
 import LoadingSpinner from "@/components/global/loading-spinner";
 
-const UserLoading = () => {
+const MainLoading = () => {
   return <LoadingSpinner className="min-h-screen" />;
 };
 
-export default UserLoading;
+export default MainLoading;

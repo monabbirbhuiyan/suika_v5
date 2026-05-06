@@ -108,15 +108,13 @@ const SignUpForm = () => {
       password: data.password,
     });
 
-    const user = session?.user;
-
     setIsLoading(false);
     if (error) {
       setError(error.message || "An error occurred during sign up.");
       toast.error(error.message || "An error occurred during sign up.");
     } else if (session?.user) {
       toast.success("Account created successfully! Please check your email.");
-      router.push(`/${user?.id}/dashboard`);
+      router.push(`/dashboard`);
     }
   };
 
@@ -124,11 +122,9 @@ const SignUpForm = () => {
     setIsLoading(true);
     setError(null);
 
-    const session = await getServerSession();
-
     const { error } = await authClient.signIn.social({
       provider,
-      callbackURL: `/${session?.user?.id}/dashboard`,
+      callbackURL: `/dashboard`,
     });
 
     setIsLoading(false);

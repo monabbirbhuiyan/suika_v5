@@ -3,7 +3,7 @@ import { createProblemSpace } from "@/action/problem-space";
 import { ProblemSpaceFormValues, problemSpaceSchema } from "@/lib/schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ type Props = {
 
 const CreateNewProblemSpaceForm = ({ open, onOpenChange }: Props) => {
   const router = useRouter();
+  const pathname = usePathname();
   const [error, setError] = React.useState<string | null>(null);
 
   const problemSpaceForm = useForm<ProblemSpaceFormValues>({
@@ -42,7 +43,7 @@ const CreateNewProblemSpaceForm = ({ open, onOpenChange }: Props) => {
       }
       toast.success("Problem space created successfully!");
       onOpenChange(false);
-      router.push(`problem-spaces/${response.id}`);
+      router.push(`${pathname}/${response.id}`);
     } catch (error) {
       toast.error("Failed to create problem space. Please try again.");
     }

@@ -155,6 +155,35 @@ Add the following values to your `.env` file:
 - `GOOGLE_AI_API_KEY=AIza...`
 - `GOOGLE_AI_MODEL=gemini-2.0-flash` (optional, defaults to this model)
 
+## AI Setup (Nvidia / DeepSeek)
+
+You can keep Gemini code and switch to a separate Nvidia provider at runtime.
+
+### Environment variables
+
+- `AI_PROVIDER=nvidia`
+- `NVIDIA_API_KEY=nvapi-...`
+- `NVIDIA_AI_MODEL=meta/llama-3.1-8b-instruct` (optional, faster default)
+- `NVIDIA_AI_CHAT_MODEL=...` (optional)
+- `NVIDIA_AI_WEAVING_MODEL=...` (optional)
+- `NVIDIA_AI_RELATIONSHIP_MODEL=...` (optional)
+- `NVIDIA_AI_CONCLUSION_MODEL=...` (optional)
+- `NVIDIA_AI_THINKING=false` (optional, set `true` for deeper reasoning but higher latency)
+
+When `AI_PROVIDER` is not set (or set to `gemini`), existing Gemini behavior remains active.
+
+### Smoke test all AI features
+
+Run the AI feature smoke suite with either provider:
+
+```bash
+# Nvidia
+AI_PROVIDER=nvidia npm run test:ai
+
+# Gemini
+AI_PROVIDER=gemini npm run test:ai
+```
+
 ### Example request
 
 ```bash

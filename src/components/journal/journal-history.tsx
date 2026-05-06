@@ -3,11 +3,7 @@
 import React from "react";
 import { toast } from "sonner";
 import { Pencil, Save, Trash2, X } from "lucide-react";
-import {
-  deleteJournalEntry,
-  readJournalEntries,
-  updateJournalEntry,
-} from "@/lib/journal";
+import { deleteJournalEntry, updateJournalEntry } from "@/lib/journal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,24 +15,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useJournalEntries } from "./journal-context";
 
 type Props = {
   userId: string;
 };
 
 const JournalHistory = ({ userId }: Props) => {
-  const [entries, setEntries] = React.useState(() =>
-    readJournalEntries(userId),
-  );
+  const { entries, refreshEntries } = useJournalEntries();
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingAnswer, setEditingAnswer] = React.useState("");
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(
     null,
   );
-
-  React.useEffect(() => {
-    setEntries(readJournalEntries(userId));
-  }, [userId]);
 
   const startEditing = (entryId: string, currentAnswer: string) => {
     setEditingId(entryId);
@@ -55,18 +46,18 @@ const JournalHistory = ({ userId }: Props) => {
       return;
     }
 
-    const next = updateJournalEntry(userId, entryId, {
+    updateJournalEntry(userId, entryId, {
       answer: trimmed,
     });
-    setEntries(next);
     toast.success("Journal entry updated.");
+    refreshEntries();
     cancelEditing();
   };
 
   const removeEntry = (entryId: string) => {
-    const next = deleteJournalEntry(userId, entryId);
-    setEntries(next);
+    deleteJournalEntry(userId, entryId);
     toast.success("Journal entry deleted.");
+    refreshEntries();
 
     if (editingId === entryId) {
       cancelEditing();

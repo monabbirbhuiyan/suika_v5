@@ -3,6 +3,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Box, Plus } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "../ui/button";
 import { Fragment, ProblemSpace } from "@/generated/prisma";
 import CreateNewProblemSpaceForm from "../forms/create-problem-space-form";
@@ -28,6 +29,7 @@ const typeConfig: Array<{
 
 const ProblemSpaceContainer = ({ problemSpace }: Props) => {
   const [createOpen, setCreateOpen] = React.useState(false);
+  const pathname = usePathname();
   const spaces = problemSpace || [];
 
   return (
@@ -81,7 +83,7 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
               return (
                 <Link
                   key={space.id}
-                  href={`problem-spaces/${space.id}`}
+                  href={`${pathname}/${space.id}`}
                   className="rounded-xl bg-card p-6 text-left hover:ring-1 hover:ring-sage/30 transition-all group block"
                 >
                   <div className="flex items-start justify-between">
