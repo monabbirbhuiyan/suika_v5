@@ -1,0 +1,6 @@
+{
+  "next_url": "https://www.courtlistener.com/api/rest/v4/opinions/?cluster__date_filed__gte=2018-01-01&cluster__docket__court=scotus&cursor=cD00NDU4Njk4&page_size=100",
+  "fetched_records": 15360,
+  "api_reported_count": "https://www.courtlistener.com/api/rest/v4/opinions/?cluster__date_filed__gte=2018-01-01&cluster__docket__court=scotus&count=on&page_size=100",
+  "updated_at_utc": "2026-05-06T19:41:58.210220+00:00"
+}

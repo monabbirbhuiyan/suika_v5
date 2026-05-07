@@ -1,0 +1,6 @@
+datasets>=3.0.0
+transformers>=4.50.0
+accelerate>=1.0.0
+torch>=2.4.0
+fastapi>=0.115.0
+uvicorn>=0.32.0

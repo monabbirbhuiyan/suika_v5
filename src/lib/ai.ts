@@ -2,6 +2,8 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import OpenAI from "openai";
 
 const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
+const IS_LOCAL_PROVIDER = ACTIVE_AI_PROVIDER === "local";
+const IS_GEMINI_PROVIDER = ACTIVE_AI_PROVIDER === "gemini";
 
 const DEFAULT_CHAT_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_QUOTE_MODEL =
@@ -24,6 +26,19 @@ const DEFAULT_NVIDIA_CONCLUSION_MODEL =
   process.env.NVIDIA_AI_CONCLUSION_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
 const NVIDIA_THINKING_MODE =
   (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
+const DEFAULT_LOCAL_BASE_URL =
+  process.env.LOCAL_AI_BASE_URL ?? "http://127.0.0.1:8000/v1";
+const DEFAULT_LOCAL_API_KEY = process.env.LOCAL_AI_API_KEY ?? "local-dev";
+const DEFAULT_LOCAL_MODEL =
+  process.env.LOCAL_AI_MODEL ?? "artifacts/legal-cpt-3050ti";
+const DEFAULT_LOCAL_CHAT_MODEL =
+  process.env.LOCAL_AI_CHAT_MODEL ?? DEFAULT_LOCAL_MODEL;
+const DEFAULT_LOCAL_WEAVING_MODEL =
+  process.env.LOCAL_AI_WEAVING_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
+const DEFAULT_LOCAL_RELATIONSHIP_MODEL =
+  process.env.LOCAL_AI_RELATIONSHIP_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
+const DEFAULT_LOCAL_CONCLUSION_MODEL =
+  process.env.LOCAL_AI_CONCLUSION_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
 
 const MAX_RELATIONSHIP_EDGES = 8;
 const QUOTE_MIN_RETRY_COOLDOWN_MS = 45_000;
@@ -228,7 +243,37 @@ const getGemini = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
-const shouldUseNvidia = () => ACTIVE_AI_PROVIDER !== "gemini";
+const shouldUseNvidia = () => !IS_GEMINI_PROVIDER && !IS_LOCAL_PROVIDER;
+
+const getOpenAiCompatibleBaseUrl = () => {
+  return IS_LOCAL_PROVIDER
+    ? DEFAULT_LOCAL_BASE_URL
+    : "https://integrate.api.nvidia.com/v1";
+};
+
+const getActiveChatModel = () => {
+  return IS_LOCAL_PROVIDER
+    ? DEFAULT_LOCAL_CHAT_MODEL
+    : DEFAULT_NVIDIA_CHAT_MODEL;
+};
+
+const getActiveWeavingModel = () => {
+  return IS_LOCAL_PROVIDER
+    ? DEFAULT_LOCAL_WEAVING_MODEL
+    : DEFAULT_NVIDIA_WEAVING_MODEL;
+};
+
+const getActiveRelationshipModel = () => {
+  return IS_LOCAL_PROVIDER
+    ? DEFAULT_LOCAL_RELATIONSHIP_MODEL
+    : DEFAULT_NVIDIA_RELATIONSHIP_MODEL;
+};
+
+const getActiveConclusionModel = () => {
+  return IS_LOCAL_PROVIDER
+    ? DEFAULT_LOCAL_CONCLUSION_MODEL
+    : DEFAULT_NVIDIA_CONCLUSION_MODEL;
+};
 
 const logActiveAiProvider = () => {
   const globalRef = globalThis as typeof globalThis & {
@@ -239,7 +284,11 @@ const logActiveAiProvider = () => {
     return;
   }
 
-  const provider = shouldUseNvidia() ? "nvidia" : "gemini";
+  const provider = IS_LOCAL_PROVIDER
+    ? "local"
+    : shouldUseNvidia()
+      ? "nvidia"
+      : "gemini";
   console.log(`[AI_PROVIDER] active=${provider}`);
   globalRef.__suikaAiProviderLogged = true;
 };
@@ -249,11 +298,15 @@ logActiveAiProvider();
 const getNvidiaClient = () => {
   return new OpenAI({
     apiKey: getNvidiaApiKey(),
-    baseURL: "https://integrate.api.nvidia.com/v1",
+    baseURL: getOpenAiCompatibleBaseUrl(),
   });
 };
 
 const getNvidiaApiKey = () => {
+  if (IS_LOCAL_PROVIDER) {
+    return DEFAULT_LOCAL_API_KEY;
+  }
+
   const readApiKey = () => {
     return (process.env.NVIDIA_API_KEY ?? process.env.NV_API_KEY)?.trim();
   };
@@ -326,14 +379,18 @@ const nvidiaChatCompletion = async ({
       top_p: 0.95,
       max_tokens: maxTokens,
       stream: false,
-      ...(thinking ? { chat_template_kwargs: { thinking: true } } : {}),
+      ...(thinking && !IS_LOCAL_PROVIDER
+        ? { chat_template_kwargs: { thinking: true } }
+        : {}),
     } as any);
 
     const content = completion.choices?.[0]?.message?.content;
     return extractNvidiaSdkText(content);
   };
 
-  const first = await requestCompletion(NVIDIA_THINKING_MODE);
+  const first = await requestCompletion(
+    NVIDIA_THINKING_MODE && !IS_LOCAL_PROVIDER,
+  );
   if (first) {
     return first;
   }
@@ -377,7 +434,7 @@ const chatWithNvidia = async ({
     messages: nvidiaMessages,
     maxTokens,
     temperature,
-    model: DEFAULT_NVIDIA_CHAT_MODEL,
+    model: getActiveChatModel(),
   });
 };
 
@@ -399,7 +456,7 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
     ],
     maxTokens: 96,
     temperature: 0.85,
-    model: DEFAULT_NVIDIA_CHAT_MODEL,
+    model: getActiveChatModel(),
   });
 
   const candidate = extractQuoteCandidate(raw);
@@ -427,7 +484,7 @@ const generateSuikaWeavingSuggestionsWithNvidia = async (
     ],
     maxTokens: 2048,
     temperature: 0.2,
-    model: DEFAULT_NVIDIA_WEAVING_MODEL,
+    model: getActiveWeavingModel(),
   });
 
   const parsed = extractJsonArray(text);
@@ -541,7 +598,7 @@ Return only JSON array objects with keys: source_id, target_id, relationship, ra
     ],
     maxTokens: 4096,
     temperature: 0,
-    model: DEFAULT_NVIDIA_RELATIONSHIP_MODEL,
+    model: getActiveRelationshipModel(),
   });
 
   const parsed = extractJsonArray(text);
@@ -621,7 +678,7 @@ const generateProblemSpaceConclusionWithNvidia = async (
     ],
     maxTokens: 2048,
     temperature: 0.2,
-    model: DEFAULT_NVIDIA_CONCLUSION_MODEL,
+    model: getActiveConclusionModel(),
   });
 
   const parsed = extractJsonObject(text);
