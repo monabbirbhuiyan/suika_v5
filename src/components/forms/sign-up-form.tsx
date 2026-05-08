@@ -135,17 +135,19 @@ const SignUpForm = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4">
+    <div className="relative min-h-screen flex items-center justify-center p-4 bg-linear-to-b from-brand-surface via-white to-brand-red-100/30 text-brand-ink">
       <FloatingCards />
-      <Card className="w-full max-w-md border-border bg-card/80 backdrop-blur-sm relative z-10">
+      <Card className="w-full max-w-md border border-(--brand-green)/20 bg-white/85 backdrop-blur-sm shadow-xl relative z-10">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-2 mx-auto">
             <Image src={"/assets/logo.svg"} alt="Logo" width={30} height={30} />
-            <span className="text-2xl font-semibold">Suika</span>
+            <span className="text-2xl font-semibold text-brand-ink">Suika</span>
           </div>
           <div className="text-center">
-            <CardTitle className="text-2xl">Create an Account</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl text-brand-ink">
+              Create an Account
+            </CardTitle>
+            <CardDescription className="text-[#5b766c]">
               Start managing your problems more effeciently today.
             </CardDescription>
           </div>
@@ -155,7 +157,7 @@ const SignUpForm = () => {
           <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
-              className="w-full gap-2 bg-transparent"
+              className="w-full gap-2 bg-brand-red-100/55 border-(--brand-red)/30 text-brand-red-700 hover:bg-brand-red-100"
               type="button"
               onClick={() => onSocialSubmit("google")}
             >
@@ -181,7 +183,7 @@ const SignUpForm = () => {
             </Button>
             <Button
               variant="outline"
-              className="w-full gap-2 bg-transparent"
+              className="w-full gap-2 bg-brand-green-100/55 border-(--brand-green)/30 text-brand-green-700 hover:bg-brand-green-100"
               type="button"
               onClick={() => onSocialSubmit("github")}
             >
@@ -194,10 +196,10 @@ const SignUpForm = () => {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-(--brand-green)/20" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
+              <span className="bg-white px-2 text-[#638076]">
                 or continue with email
               </span>
             </div>
@@ -222,7 +224,7 @@ const SignUpForm = () => {
                         <UserIcon
                           className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
                             focusedField === "name"
-                              ? "text-primary"
+                              ? "text-brand-green"
                               : "text-muted-foreground"
                           }`}
                         />
@@ -230,7 +232,7 @@ const SignUpForm = () => {
                           {...field}
                           type="text"
                           placeholder="John Doe"
-                          className="pl-10 h-12 transition-all duration-300 focus:ring-2 focus:ring-primary/20"
+                          className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
                           onFocus={() => setFocusedField("name")}
                           onBlur={() => {
                             setFocusedField(null);
@@ -261,7 +263,7 @@ const SignUpForm = () => {
                         <MailIcon
                           className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
                             focusedField === "email"
-                              ? "text-primary"
+                              ? "text-brand-green"
                               : "text-muted-foreground"
                           }`}
                         />
@@ -269,7 +271,7 @@ const SignUpForm = () => {
                           {...field}
                           type="email"
                           placeholder="you@mail.ca"
-                          className="pl-10 h-12 transition-all duration-300 focus:ring-2 focus:ring-primary/20"
+                          className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
                           onFocus={() => setFocusedField("email")}
                           onBlur={() => {
                             setFocusedField(null);
@@ -302,7 +304,7 @@ const SignUpForm = () => {
                         <LockIcon
                           className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
                             focusedField === "password"
-                              ? "text-primary"
+                              ? "text-brand-green"
                               : "text-muted-foreground"
                           }`}
                         />
@@ -310,7 +312,7 @@ const SignUpForm = () => {
                           {...field}
                           type={showPassword ? "text" : "password"}
                           placeholder="Create a strong password"
-                          className="pl-10 pr-10 h-12 transition-all duration-300 focus:ring-2 focus:ring-primary/20"
+                          className="pl-10 pr-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
                           onFocus={() => setFocusedField("password")}
                           onBlur={() => {
                             setFocusedField(null);
@@ -320,7 +322,7 @@ const SignUpForm = () => {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-ink transition-colors"
                         >
                           {showPassword ? (
                             <EyeOff className="w-4 h-4" />
@@ -344,10 +346,10 @@ const SignUpForm = () => {
                               passwordStrength <= 25
                                 ? "text-destructive"
                                 : passwordStrength <= 50
-                                  ? "text-chart-3"
+                                  ? "text-brand-red"
                                   : passwordStrength <= 75
-                                    ? "text-chart-2"
-                                    : "text-accent-foreground"
+                                    ? "text-brand-green-700"
+                                    : "text-brand-green"
                             }`}
                           >
                             {strengthLabel}
@@ -359,7 +361,7 @@ const SignUpForm = () => {
                               key={req.label}
                               className={`flex items-center gap-1.5 text-xs transition-all duration-300 ${
                                 req.met
-                                  ? "text-accent-foreground"
+                                  ? "text-brand-green"
                                   : "text-muted-foreground"
                               }`}
                               style={{ animationDelay: `${i * 0.05}s` }}
@@ -403,14 +405,14 @@ const SignUpForm = () => {
                         I agree to the{" "}
                         <Link
                           href="/terms"
-                          className="text-primary hover:underline"
+                          className="text-brand-green hover:text-brand-green-700 hover:underline"
                         >
                           Terms of Service
                         </Link>{" "}
                         and{" "}
                         <Link
                           href="/privacy"
-                          className="text-primary hover:underline"
+                          className="text-brand-green hover:text-brand-green-700 hover:underline"
                         >
                           Privacy Policy
                         </Link>
@@ -424,7 +426,7 @@ const SignUpForm = () => {
               {/* Submit button */}
               <Button
                 type="submit"
-                className="w-full h-12 text-base font-semibold group relative overflow-hidden"
+                className="w-full h-12 text-base font-semibold group relative overflow-hidden bg-brand-green hover:bg-brand-green-700 text-white"
                 disabled={isLoading}
               >
                 <span
@@ -447,7 +449,7 @@ const SignUpForm = () => {
             Already have an account?{" "}
             <button
               type="button"
-              className="text-primary font-medium hover:underline"
+              className="text-brand-green font-medium hover:text-brand-green-700 hover:underline"
             >
               <Link href="/sign-in">Sign in</Link>
             </button>

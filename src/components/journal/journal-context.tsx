@@ -5,7 +5,8 @@ import { JournalEntry, readJournalEntries } from "@/lib/journal";
 
 type JournalContextType = {
   entries: JournalEntry[];
-  refreshEntries: () => void;
+  loading: boolean;
+  refreshEntries: () => Promise<void>;
 };
 
 const JournalContext = createContext<JournalContextType | undefined>(undefined);
@@ -17,28 +18,35 @@ export const JournalProvider = ({
   children: React.ReactNode;
   userId: string;
 }) => {
-  const [entries, setEntries] = useState<JournalEntry[]>(() =>
-    readJournalEntries(userId),
-  );
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const refreshEntries = () => {
-    setEntries(readJournalEntries(userId));
+  const refreshEntries = async () => {
+    setLoading(true);
+    try {
+      const next = await readJournalEntries();
+      setEntries(next);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    // Listen for storage changes from other tabs
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === `suika:journal:entries:${userId}`) {
-        refreshEntries();
-      }
+    void refreshEntries();
+  }, [userId]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      void refreshEntries();
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [userId]);
 
   const value = {
     entries,
+    loading,
     refreshEntries,
   };
 

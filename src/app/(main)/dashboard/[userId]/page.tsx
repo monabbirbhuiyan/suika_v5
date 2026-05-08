@@ -129,32 +129,38 @@ const DashboardPage = async () => {
   const lastUpdatedSpace = sortedSpaces[0] ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-350 space-y-4 px-4 py-4 md:px-5 md:py-5">
-      <Card className="overflow-hidden border-border/70 bg-linear-to-r from-card via-card to-primary/10">
+    <div className="mx-auto w-full max-w-350 space-y-4 px-4 py-4 md:px-5 md:py-5 text-brand-ink">
+      <Card className="overflow-hidden border-(--brand-green)/20 bg-linear-to-r from-white via-brand-surface to-brand-green-100/45">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5 md:p-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary/80">
+              <Sparkles className="h-4 w-4 text-brand-green" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-green">
                 Clarity Command Center
               </p>
             </div>
-            <h1 className="font-serif text-2xl text-foreground md:text-3xl">
+            <h1 className="font-serif text-2xl text-brand-ink md:text-3xl">
               {user?.name
                 ? `${user.name.split(" ")[0]}'s Dashboard`
                 : "Dashboard"}
             </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
+            <p className="max-w-2xl text-sm text-[#56746a]">
               A compact view of momentum, bottlenecks, and decision quality
               across your problem spaces.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
+            <Badge
+              variant="outline"
+              className="rounded-full px-3 py-1 text-xs border-(--brand-green)/30 bg-white text-brand-green"
+            >
               {engagementRate}% weekly engagement
             </Badge>
-            <Button asChild className="rounded-full">
+            <Button
+              asChild
+              className="rounded-full bg-brand-green hover:bg-brand-green-700 text-white"
+            >
               <Link href={`/problem-spaces/${user?.id}`}>
                 Open Problem Spaces
                 <ArrowRight className="h-4 w-4" />
@@ -165,36 +171,36 @@ const DashboardPage = async () => {
       </Card>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Problem Spaces
             </p>
-            <p className="mt-2 text-3xl font-semibold text-foreground">
+            <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {totalProblemSpaces}
             </p>
             <p className="text-xs text-muted-foreground">Total active spaces</p>
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Average Clarity
             </p>
-            <p className="mt-2 text-3xl font-semibold text-foreground">
+            <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {averageClarity}%
             </p>
             <p className="text-xs text-muted-foreground">Across all spaces</p>
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Total Fragments
             </p>
-            <p className="mt-2 text-3xl font-semibold text-foreground">
+            <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {totalFragments}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -203,12 +209,12 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Active This Week
             </p>
-            <p className="mt-2 text-3xl font-semibold text-foreground">
+            <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {activeThisWeek}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -219,10 +225,10 @@ const DashboardPage = async () => {
       </section>
 
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <Card className="xl:col-span-5">
+        <Card className="xl:col-span-5 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-primary" />
+              <TrendingUp className="h-4 w-4 text-brand-green" />
               Clarity Leaderboard
             </CardTitle>
           </CardHeader>
@@ -237,7 +243,7 @@ const DashboardPage = async () => {
                   <div className="flex items-center justify-between gap-3">
                     <Link
                       href={`/problem-spaces/${user?.id}/${space.id}`}
-                      className="truncate text-sm font-medium text-foreground hover:underline"
+                      className="truncate text-sm font-medium text-brand-ink hover:text-brand-green hover:underline"
                     >
                       {space.title}
                     </Link>
@@ -248,9 +254,9 @@ const DashboardPage = async () => {
                       {space.progress}%
                     </Badge>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-border/70">
+                  <div className="h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
                     <div
-                      className="h-full rounded-full bg-sage"
+                      className="h-full rounded-full bg-brand-green"
                       style={{
                         width: `${Math.max(0, Math.min(100, space.progress ?? 0))}%`,
                       }}
@@ -262,10 +268,10 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-3">
+        <Card className="xl:col-span-3 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Target className="h-4 w-4 text-primary" />
+              <Target className="h-4 w-4 text-brand-green" />
               Health Bands
             </CardTitle>
           </CardHeader>
@@ -293,10 +299,10 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-4">
+        <Card className="xl:col-span-4 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Compass className="h-4 w-4 text-primary" />
+              <Compass className="h-4 w-4 text-brand-green" />
               Decision Quality Signals
             </CardTitle>
           </CardHeader>
@@ -310,9 +316,9 @@ const DashboardPage = async () => {
                   {evidenceCoverage}%
                 </span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-border/70">
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
                 <div
-                  className="h-full rounded-full bg-primary/80"
+                  className="h-full rounded-full bg-brand-green"
                   style={{ width: `${evidenceCoverage}%` }}
                 />
               </div>
@@ -327,15 +333,15 @@ const DashboardPage = async () => {
                   {questionToConclusionCoverage}%
                 </span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-border/70">
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
                 <div
-                  className="h-full rounded-full bg-sage/90"
+                  className="h-full rounded-full bg-brand-green-700"
                   style={{ width: `${questionToConclusionCoverage}%` }}
                 />
               </div>
             </div>
 
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3 text-xs text-[#5a766c]">
               Claims: {claimFragments} · Evidence: {evidenceFragments} ·
               Questions: {fragmentCounts.QUESTION} · Conclusions:{" "}
               {fragmentCounts.CONCLUSION}
@@ -351,7 +357,7 @@ const DashboardPage = async () => {
           </JournalProvider>
         </div>
 
-        <Card className="xl:col-span-4">
+        <Card className="xl:col-span-4 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-3">
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
@@ -363,12 +369,12 @@ const DashboardPage = async () => {
                 {recentSpaces.map((space) => (
                   <div
                     key={space.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-(--brand-green)/15 bg-white px-3 py-2"
                   >
                     <div className="min-w-0">
                       <Link
                         href={`/problem-spaces/${user?.id}/${space.id}`}
-                        className="block truncate text-sm font-medium text-foreground hover:underline"
+                        className="block truncate text-sm font-medium text-brand-ink hover:text-brand-green hover:underline"
                       >
                         {space.title}
                       </Link>
@@ -386,10 +392,10 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-3">
+        <Card className="xl:col-span-3 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-primary" />
+              <AlertTriangle className="h-4 w-4 text-brand-red" />
               Needs Attention
             </CardTitle>
           </CardHeader>
@@ -402,11 +408,11 @@ const DashboardPage = async () => {
               stalledSpaces.slice(0, 5).map((space) => (
                 <div
                   key={space.id}
-                  className="rounded-lg border border-border/70 bg-card/60 px-3 py-2"
+                  className="rounded-lg border border-(--brand-red)/20 bg-brand-red-100/35 px-3 py-2"
                 >
                   <Link
                     href={`/problem-spaces/${user?.id}/${space.id}`}
-                    className="block truncate text-sm font-medium text-foreground hover:underline"
+                    className="block truncate text-sm font-medium text-brand-ink hover:text-brand-red hover:underline"
                   >
                     {space.title}
                   </Link>
@@ -422,7 +428,7 @@ const DashboardPage = async () => {
       </section>
 
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <Card>
+        <Card className="border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Fragment Mix</CardTitle>
           </CardHeader>
@@ -444,9 +450,9 @@ const DashboardPage = async () => {
                       {count} ({pct}%)
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-border/70">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-(--brand-green)/10">
                     <div
-                      className="h-full rounded-full bg-primary/75"
+                      className="h-full rounded-full bg-brand-green"
                       style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
                     />
                   </div>
@@ -456,7 +462,7 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Focus Suggestions</CardTitle>
           </CardHeader>
@@ -468,17 +474,17 @@ const DashboardPage = async () => {
               </p>
             ) : (
               <>
-                <p className="rounded-lg border border-border/70 bg-card/60 p-3">
+                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
                   {stalledSpaces.length > 0
                     ? `${stalledSpaces.length} problem space(s) appear stalled (low clarity and no updates in 14+ days). Revisit them or archive them.`
                     : "Great momentum. No stalled spaces detected in the last 14 days."}
                 </p>
-                <p className="rounded-lg border border-border/70 bg-card/60 p-3">
+                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
                   {fragmentCounts.QUESTION === 0
                     ? "You currently have no question fragments. Add explicit questions to sharpen AI recommendations and conclusions."
                     : `You have ${fragmentCounts.QUESTION} question fragment(s). Keep pairing questions with observations and constraints for better clarity.`}
                 </p>
-                <p className="rounded-lg border border-border/70 bg-card/60 p-3">
+                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
                   {averageClarity < 40
                     ? "Average clarity is still early-stage. Focus on one high-priority space and push it past 60% this week."
                     : "Average clarity is healthy. Continue refining your top spaces with concrete evidence and decision fragments."}
@@ -490,20 +496,24 @@ const DashboardPage = async () => {
       </section>
 
       {lastUpdatedSpace ? (
-        <Card className="border-dashed">
+        <Card className="border-dashed border-(--brand-green)/25 bg-white/90">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
                 Most Recent Update
               </p>
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-sm font-medium text-brand-ink">
                 {lastUpdatedSpace.title}
               </p>
               <p className="text-xs text-muted-foreground">
                 Updated {new Date(lastUpdatedSpace.updatedAt).toLocaleString()}
               </p>
             </div>
-            <Button asChild variant="outline" className="rounded-full">
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-full border-(--brand-green)/25 text-brand-green hover:bg-brand-green-100/45"
+            >
               <Link href={`/problem-spaces/${user?.id}/${lastUpdatedSpace.id}`}>
                 Continue Working
                 <ArrowRight className="h-4 w-4" />

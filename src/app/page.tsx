@@ -13,7 +13,7 @@ export default async function Home() {
   const user = session?.user ?? null;
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className="min-h-screen bg-linear-to-b from-brand-surface via-white to-brand-red-100/30">
       <Navbar user={user as any} />
       <HeroSection />
       <FeaturesSection />

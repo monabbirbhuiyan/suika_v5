@@ -114,10 +114,12 @@ const AppearanceTab = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="border-(--brand-green)/15 bg-white">
         <CardHeader>
-          <CardTitle>Theme</CardTitle>
-          <CardDescription>Select your preferred color scheme</CardDescription>
+          <CardTitle className="text-brand-ink">Theme</CardTitle>
+          <CardDescription className="text-[#5f7a70]">
+            Select your preferred color scheme
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
@@ -129,8 +131,8 @@ const AppearanceTab = () => {
                 className={cn(
                   "flex flex-col items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors",
                   theme === themeOption.id
-                    ? "border-accent bg-accent/5"
-                    : "border-muted bg-muted/30 hover:bg-muted/50",
+                    ? "border-(--brand-green)/50 bg-brand-green-100/50"
+                    : "border-(--brand-green)/15 bg-brand-surface/60 hover:bg-brand-green-100/35",
                 )}
               >
                 <themeOption.icon className="size-6 text-muted-foreground" />
@@ -141,10 +143,10 @@ const AppearanceTab = () => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-(--brand-green)/15 bg-white">
         <CardHeader>
-          <CardTitle>Accent Color</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-brand-ink">Accent Color</CardTitle>
+          <CardDescription className="text-[#5f7a70]">
             Choose your accent color for buttons and highlights
           </CardDescription>
         </CardHeader>
@@ -159,7 +161,7 @@ const AppearanceTab = () => {
                   "size-10 rounded-full ring-2 ring-offset-2 ring-offset-background transition-all",
                   accent.color,
                   selectedAccent === accent.id
-                    ? "ring-foreground"
+                    ? "ring-brand-ink"
                     : "ring-transparent",
                 )}
                 aria-label={`Select ${accent.id} accent color`}
@@ -169,10 +171,12 @@ const AppearanceTab = () => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-(--brand-green)/15 bg-white">
         <CardHeader>
-          <CardTitle>Display</CardTitle>
-          <CardDescription>Customize your display preferences</CardDescription>
+          <CardTitle className="text-brand-ink">Display</CardTitle>
+          <CardDescription className="text-[#5f7a70]">
+            Customize your display preferences
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">

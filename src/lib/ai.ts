@@ -410,21 +410,9 @@ const chatWithNvidia = async ({
   maxTokens = 512,
   temperature = 0.7,
 }: GroqChatOptions) => {
-  const nvidiaMessages = messages
-    .map((message) => {
-      if (message.role === "assistant") {
-        return {
-          role: "assistant" as const,
-          content: message.content,
-        };
-      }
-
-      return {
-        role: message.role,
-        content: message.content,
-      };
-    })
-    .filter((message) => message.content.trim().length > 0);
+  const nvidiaMessages: NvidiaMessage[] = messages.filter(
+    (message) => message.content.trim().length > 0,
+  );
 
   if (nvidiaMessages.length === 0) {
     throw new Error("At least one user or assistant message is required.");
@@ -721,16 +709,17 @@ const generateProblemSpaceConclusionWithNvidia = async (
     return fallbackProblemSpaceConclusion(input);
   }
 
+  let _fallback: ProblemSpaceConclusion | null = null;
+  const getFallback = () =>
+    (_fallback ??= fallbackProblemSpaceConclusion(input));
+
   return {
     conclusion: conclusion.slice(0, 600),
     why: why.slice(0, 600),
     description: description.slice(0, 600),
     suggestions:
-      suggestions.length > 0
-        ? suggestions
-        : fallbackProblemSpaceConclusion(input).suggestions,
-    advice:
-      advice.length > 0 ? advice : fallbackProblemSpaceConclusion(input).advice,
+      suggestions.length > 0 ? suggestions : getFallback().suggestions,
+    advice: advice.length > 0 ? advice : getFallback().advice,
     confidence,
     basedOnQuestionCount,
     totalQuestionCount,
@@ -1285,6 +1274,7 @@ const selectHighSignalEdges = <T extends ClarityConnectionSuggestion>(
   const outgoingByFragment = new Map<string, number>();
   const incomingByFragment = new Map<string, number>();
   const perNodePairCount = new Map<string, number>();
+  const selectedFragmentPairKeys = new Set<string>();
 
   const canUse = (edge: T) => {
     const outCount = outgoingByFragment.get(edge.fromFragmentId) ?? 0;
@@ -1309,6 +1299,9 @@ const selectHighSignalEdges = <T extends ClarityConnectionSuggestion>(
     );
     const pairKey = `${edge.fromNodeId}::${edge.toNodeId}`;
     perNodePairCount.set(pairKey, (perNodePairCount.get(pairKey) ?? 0) + 1);
+    selectedFragmentPairKeys.add(
+      `${edge.fromFragmentId}::${edge.toFragmentId}`,
+    );
   };
 
   for (const edge of candidates) {
@@ -1337,11 +1330,7 @@ const selectHighSignalEdges = <T extends ClarityConnectionSuggestion>(
     }
 
     const key = `${edge.fromFragmentId}::${edge.toFragmentId}`;
-    const exists = selected.some(
-      (item) => `${item.fromFragmentId}::${item.toFragmentId}` === key,
-    );
-
-    if (exists || !canUse(edge)) {
+    if (selectedFragmentPairKeys.has(key) || !canUse(edge)) {
       continue;
     }
 
@@ -1769,16 +1758,13 @@ export const decideProblemSpaceClarityProgress = async (
   );
   const networkSignal = clamp01(weightedConnectionSignal / maxEdgeSignal);
 
-  const questionPresence = allFragments.some(
-    (fragment) => fragment.type === "QUESTION",
-  )
-    ? 1
-    : 0;
-  const conclusionPresence = allFragments.some(
-    (fragment) => fragment.type === "CONCLUSION",
-  )
-    ? 1
-    : 0;
+  let questionPresence = 0;
+  let conclusionPresence = 0;
+  for (const fragment of allFragments) {
+    if (fragment.type === "QUESTION") questionPresence = 1;
+    else if (fragment.type === "CONCLUSION") conclusionPresence = 1;
+    if (questionPresence && conclusionPresence) break;
+  }
 
   const relationTotal = Math.max(1, suggestions.length);
   const contradictionRatio = relationCounts.contradicts / relationTotal;

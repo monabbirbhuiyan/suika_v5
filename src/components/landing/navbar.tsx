@@ -79,7 +79,7 @@ const Navbar = ({ user }: Props) => {
 
   return (
     <motion.nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-white/80 backdrop-blur-lg shadow-sm" : "bg-transparent"}`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-brand-surface/85 backdrop-blur-lg shadow-sm border-b border-(--brand-green)/15" : "bg-transparent"}`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -93,7 +93,7 @@ const Navbar = ({ user }: Props) => {
             className="flex flex-row gap-2 items-center justify-between"
           >
             <Image src="/assets/logo.svg" alt="Suika" width={30} height={30} />
-            <span className="text-2xl font-light text-[#2D2D2D]">SUIKA</span>
+            <span className="text-2xl font-light text-brand-ink">SUIKA</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -102,7 +102,7 @@ const Navbar = ({ user }: Props) => {
               <a
                 key={link.label}
                 href={link.href}
-                className="text-sm text-[#6A6A6A] hover:text-[#2D2D2D] transition-colors"
+                className="text-sm text-[#557367] hover:text-brand-green transition-colors"
               >
                 {link.label}
               </a>
@@ -112,7 +112,7 @@ const Navbar = ({ user }: Props) => {
           {/* CTA */}
           <div className="hidden md:block">
             <Link href="/sign-up">
-              <Button className="bg-[#2D2D2D] hover:bg-[#3D3D3D] text-white rounded-full px-6 hover:cursor-pointer">
+              <Button className="bg-brand-green hover:bg-brand-green-700 text-white rounded-full px-6 hover:cursor-pointer">
                 Get Started
               </Button>
             </Link>
@@ -120,7 +120,7 @@ const Navbar = ({ user }: Props) => {
 
           {/* Mobile Menu Toogle */}
           <button
-            className="md:hidden text-[#2D2D2D]"
+            className="md:hidden text-brand-ink"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen ? (
@@ -137,14 +137,14 @@ const Navbar = ({ user }: Props) => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden mt-4 pt-4 border-t border-gray-100"
+            className="md:hidden mt-4 pt-4 border-t border-(--brand-green)/20"
           >
             <div className="flex flex-col gap-4">
               {navlinks.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
-                  className="text-sm text-[#6A6A6A] hover:text-[#2D2D2D] transition-colors"
+                  className="text-sm text-[#557367] hover:text-brand-green transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {link.label}
@@ -158,7 +158,7 @@ const Navbar = ({ user }: Props) => {
                     : "/sign-up"
                 }
               >
-                <Button className="w-full bg-[#2D2D2D] hover:bg-[#3D3D3D] text-white rounded-full">
+                <Button className="w-full bg-brand-green hover:bg-brand-green-700 text-white rounded-full">
                   {clientUser || user ? "Dashboard" : "Get Started"}
                 </Button>
               </Link>

@@ -89,8 +89,8 @@ const ProfileTab = ({ user }: Props) => {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h3 className="font-serif text-xl text-foreground">Profile</h3>
-        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+        <h3 className="font-serif text-xl text-brand-ink">Profile</h3>
+        <p className="text-sm text-[#5b766c] mt-1 leading-relaxed">
           How you appear within your Suika experience.
         </p>
       </div>
@@ -113,8 +113,10 @@ const ProfileTab = ({ user }: Props) => {
                 </div>
               )}
               <div>
-                <p className="text-sm font-medium">Upload a new photo</p>
-                <p className="text-xs text-muted-foreground mt-1 mb-3">
+                <p className="text-sm font-medium text-brand-ink">
+                  Upload a new photo
+                </p>
+                <p className="text-xs text-[#5f7a70] mt-1 mb-3">
                   JPG, PNG or GIF. Max 2MB.
                 </p>
                 <Input
@@ -131,6 +133,7 @@ const ProfileTab = ({ user }: Props) => {
                   }
                   variant="outline"
                   size="sm"
+                  className="border-(--brand-green)/25 text-brand-green hover:bg-brand-green-100/45"
                 >
                   Change Photo
                 </Button>
@@ -207,7 +210,10 @@ const ProfileTab = ({ user }: Props) => {
                   )}
                 />
                 <div className="flex justify-end pt-4">
-                  <Button type="submit" className="hover:cursor-pointer">
+                  <Button
+                    type="submit"
+                    className="hover:cursor-pointer bg-brand-green hover:bg-brand-green-700 text-white"
+                  >
                     Save Changes
                   </Button>
                 </div>

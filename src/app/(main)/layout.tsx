@@ -38,7 +38,7 @@ const MainLayout = async ({ children }: Props) => {
 
       <SidebarInset>
         <main
-          className="w-full min-h-screen flex flex-col"
+          className="w-full min-h-screen flex flex-col bg-linear-to-b from-brand-surface via-white to-brand-red-100/25"
           suppressHydrationWarning
         >
           <MainNavbar

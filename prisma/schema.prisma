@@ -16,21 +16,46 @@ datasource db {
 // ─── Users & Auth ────────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id
-  name          String
-  email         String
-  bio           String?
-  emailVerified Boolean        @default(false)
-  image         String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  subscription  Subscription?
-  problemSpaces ProblemSpace[]
+  id                      String                   @id
+  name                    String
+  email                   String
+  bio                     String?
+  emailVerified           Boolean                  @default(false)
+  image                   String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  sessions                Session[]
+  accounts                Account[]
+  subscription            Subscription?
+  problemSpaces           ProblemSpace[]
+  journalEntries          JournalEntry[]
+  notificationPreferences NotificationPreferences?
+  privacyPreferences      PrivacyPreferences?
 
   @@unique([email])
   @@map("user")
+}
+
+enum JournalEntryType {
+  QUESTION
+  SOLVED
+}
+
+model JournalEntry {
+  id        String           @id @default(cuid())
+  userId    String
+  question  String
+  answer    String
+  type      JournalEntryType @default(QUESTION)
+  entryDate DateTime         @db.Date
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, entryDate])
+  @@map("journal_entries")
 }
 
 model Session {
@@ -87,6 +112,54 @@ enum PlanTier {
   FREE
   THOUGHT_PARTNER
   LIFE_ARCHITECT
+}
+
+// ─── Notification Preferences ────────────────────────────────────────────────
+
+model NotificationPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // Email notifications
+  emailJournalReminder      Boolean @default(true)
+  emailWeeklySummary        Boolean @default(true)
+  emailProblemSpaceActivity Boolean @default(false)
+  emailProductUpdates       Boolean @default(true)
+  emailSecurityAlerts       Boolean @default(true)
+
+  // In-app notifications
+  inAppJournalPrompt   Boolean @default(true)
+  inAppAiSuggestions   Boolean @default(true)
+  inAppProblemProgress Boolean @default(true)
+  inAppMilestones      Boolean @default(true)
+
+  // Digest frequency
+  digestFrequency String @default("weekly") // daily | weekly | never
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model PrivacyPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  profileSearchable         Boolean @default(false)
+  allowUsageAnalytics       Boolean @default(false)
+  allowAiTraining           Boolean @default(false)
+  allowPersonalizedInsights Boolean @default(true)
+  dataRetentionPolicy       String  @default("forever") // forever | 365d | 180d | 90d | 30d
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("privacy_preferences")
 }
 
 model Subscription {

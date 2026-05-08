@@ -3,6 +3,7 @@ export type JournalEntryType = "QUESTION" | "SOLVED";
 export type JournalEntry = {
   id: string;
   createdAt: string;
+  entryDate: string;
   question: string;
   answer: string;
   type: JournalEntryType;
@@ -16,19 +17,6 @@ export type JournalPromptState = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const promptKey = (userId: string) => `suika:journal:prompt:${userId}`;
-const entriesKey = (userId: string) => `suika:journal:entries:${userId}`;
-
-const persistEntries = (userId: string, entries: JournalEntry[]) => {
-  const next = [...entries]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-    .slice(0, 250);
-
-  localStorage.setItem(entriesKey(userId), JSON.stringify(next));
-  return next;
-};
 
 export const isPromptExpired = (askedAtIso: string) => {
   const askedAt = new Date(askedAtIso).getTime();
@@ -61,66 +49,120 @@ export const writePromptState = (userId: string, state: JournalPromptState) => {
   localStorage.setItem(promptKey(userId), JSON.stringify(state));
 };
 
-export const readJournalEntries = (userId: string): JournalEntry[] => {
-  try {
-    const raw = localStorage.getItem(entriesKey(userId));
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw) as JournalEntry[];
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed
-      .filter((entry) => {
-        return Boolean(
-          entry?.id &&
-          entry?.createdAt &&
-          entry?.question &&
-          entry?.answer &&
-          entry?.type,
-        );
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-  } catch {
+const parseEntriesResponse = (payload: unknown): JournalEntry[] => {
+  if (!payload || typeof payload !== "object") {
     return [];
   }
+
+  const items = (payload as { entries?: unknown[] }).entries;
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as {
+        id?: unknown;
+        createdAt?: unknown;
+        entryDate?: unknown;
+        question?: unknown;
+        answer?: unknown;
+        type?: unknown;
+      };
+
+      if (
+        typeof record.id !== "string" ||
+        typeof record.createdAt !== "string" ||
+        typeof record.entryDate !== "string" ||
+        typeof record.question !== "string" ||
+        typeof record.answer !== "string" ||
+        (record.type !== "QUESTION" && record.type !== "SOLVED")
+      ) {
+        return null;
+      }
+
+      return {
+        id: record.id,
+        createdAt: record.createdAt,
+        entryDate: record.entryDate,
+        question: record.question,
+        answer: record.answer,
+        type: record.type,
+      } satisfies JournalEntry;
+    })
+    .filter((entry): entry is JournalEntry => Boolean(entry));
 };
 
-export const appendJournalEntry = (userId: string, entry: JournalEntry) => {
-  const current = readJournalEntries(userId);
-  return persistEntries(userId, [entry, ...current]);
+export const readJournalEntries = async (): Promise<JournalEntry[]> => {
+  const response = await fetch("/api/journal/entries", {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json().catch(() => null);
+  return parseEntriesResponse(payload);
 };
 
-export const updateJournalEntry = (
-  userId: string,
+export const appendJournalEntry = async (entry: {
+  question: string;
+  answer: string;
+  type: JournalEntryType;
+  createdAt?: string;
+}): Promise<JournalEntry | null> => {
+  const response = await fetch("/api/journal/entries", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(entry),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as {
+    entry?: JournalEntry;
+  } | null;
+
+  return payload?.entry ?? null;
+};
+
+export const updateJournalEntry = async (
   entryId: string,
   patch: Partial<Pick<JournalEntry, "question" | "answer" | "type">>,
 ) => {
-  const current = readJournalEntries(userId);
-  const updated = current.map((entry) => {
-    if (entry.id !== entryId) {
-      return entry;
-    }
-
-    return {
-      ...entry,
-      question: patch.question ?? entry.question,
-      answer: patch.answer ?? entry.answer,
-      type: patch.type ?? entry.type,
-    };
+  const response = await fetch(`/api/journal/entries/${entryId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(patch),
   });
 
-  return persistEntries(userId, updated);
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as {
+    entry?: JournalEntry;
+  } | null;
+
+  return payload?.entry ?? null;
 };
 
-export const deleteJournalEntry = (userId: string, entryId: string) => {
-  const current = readJournalEntries(userId);
-  const filtered = current.filter((entry) => entry.id !== entryId);
-  return persistEntries(userId, filtered);
+export const deleteJournalEntry = async (entryId: string) => {
+  const response = await fetch(`/api/journal/entries/${entryId}`, {
+    method: "DELETE",
+  });
+
+  return response.ok;
 };

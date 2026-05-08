@@ -3,13 +3,11 @@
 import Link from "next/link";
 import React from "react";
 import { toast } from "sonner";
-import { BookOpen, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   appendJournalEntry,
   isPromptExpired,
-  readJournalEntries,
   readPromptState,
   writePromptState,
 } from "@/lib/journal";
@@ -33,7 +31,7 @@ const JournalCard = ({ userId, compact = false }: Props) => {
   const [saving, setSaving] = React.useState(false);
   const [todayCount, setTodayCount] = React.useState(0);
   const router = useRouter();
-  const { refreshEntries } = useJournalEntries();
+  const { entries, refreshEntries } = useJournalEntries();
 
   React.useEffect(() => {
     let isMounted = true;
@@ -86,7 +84,6 @@ const JournalCard = ({ userId, compact = false }: Props) => {
         }
       }
 
-      const entries = readJournalEntries(userId);
       const today = new Date().toLocaleDateString();
       const countToday = entries.filter(
         (entry) => new Date(entry.createdAt).toLocaleDateString() === today,
@@ -102,9 +99,9 @@ const JournalCard = ({ userId, compact = false }: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, [userId, entries]);
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     const trimmed = answer.trim();
     if (!trimmed) {
       toast.error("Write a short journal entry first.");
@@ -113,25 +110,27 @@ const JournalCard = ({ userId, compact = false }: Props) => {
 
     setSaving(true);
     try {
-      const next = appendJournalEntry(userId, {
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
+      const created = await appendJournalEntry({
         question: prompt,
         answer: trimmed,
         type,
       });
 
+      if (!created) {
+        toast.error("Failed to save journal entry.");
+        return;
+      }
+
+      await refreshEntries();
+
       const today = new Date().toLocaleDateString();
-      const countToday = next.filter(
+      const countToday = [...entries, created].filter(
         (entry) => new Date(entry.createdAt).toLocaleDateString() === today,
       ).length;
 
       setTodayCount(countToday);
       setAnswer("");
       toast.success("Journal entry saved.");
-
-      // Refresh the entries in other components
-      refreshEntries();
     } finally {
       setSaving(false);
       router.refresh();
@@ -139,93 +138,104 @@ const JournalCard = ({ userId, compact = false }: Props) => {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <BookOpen className="h-4 w-4" />
-          Daily Momentum Journal
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {loadingPrompt ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Preparing your daily question...
-          </p>
-        ) : (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">
-              Prompt of the Day
+    <div className="relative mx-auto w-full max-w-lg">
+      {/* Pin */}
+      <div className="absolute -top-3 left-1/2 z-10 -translate-x-1/2">
+        <div className="h-6 w-3 rounded-full bg-[#bc000e] shadow-md" />
+      </div>
+
+      {/* Note */}
+      <div className="relative rounded-sm bg-[#e8f5ee] shadow-[4px_6px_24px_rgba(0,0,0,0.18)] rotate-[-0.5deg]">
+        {/* Fold corner */}
+        <div className="absolute bottom-0 right-0 h-8 w-8 bg-linear-to-tl from-[#90c8a8] to-transparent" />
+
+        <div className="p-6 space-y-4">
+          {/* Date + count */}
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#12753e]">
+              {new Date().toLocaleDateString(undefined, {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
             </p>
-            <p className="mt-1 text-sm text-foreground">{prompt}</p>
+            <span className="text-[11px] text-[#2d6e47]">
+              {todayCount} today
+            </span>
           </div>
-        )}
 
-        <div className="inline-flex rounded-full border border-border/70 p-1">
-          <button
-            type="button"
-            onClick={() => setType("QUESTION")}
-            className={`rounded-full px-3 py-1 text-xs ${
-              type === "QUESTION"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
-          >
-            I have a question
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("SOLVED")}
-            className={`rounded-full px-3 py-1 text-xs ${
-              type === "SOLVED"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
-          >
-            I solved something
-          </button>
-        </div>
+          {/* Prompt */}
+          {loadingPrompt ? (
+            <div className="flex items-center gap-2 text-xs text-[#2d6e47]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading prompt…
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-[#0d4f2a] italic border-b border-dashed border-[#7ab894] pb-3">
+              &ldquo;{prompt}&rdquo;
+            </p>
+          )}
 
-        <textarea
-          value={answer}
-          onChange={(event) => setAnswer(event.target.value)}
-          rows={compact ? 3 : 5}
-          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
-          placeholder={
-            type === "QUESTION"
-              ? "Write the key question you are carrying today..."
-              : "Write what you solved today and why it matters..."
-          }
-        />
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {todayCount} entr{todayCount === 1 ? "y" : "ies"} today
-          </p>
-          <div className="flex items-center gap-2">
-            {!compact ? null : (
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                className="rounded-full"
+          {/* Type toggle */}
+          <div className="flex gap-2">
+            {(["QUESTION", "SOLVED"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-all border ${
+                  type === t
+                    ? "bg-[#12753e] text-white border-[#12753e]"
+                    : "bg-transparent text-[#2d6e47] border-[#7ab894] hover:bg-[#c8e8d4]"
+                }`}
               >
-                <Link href={`/journal/${userId}`}>Open Journal</Link>
-              </Button>
+                {t === "QUESTION" ? "Question" : "Solved ✓"}
+              </button>
+            ))}
+          </div>
+
+          {/* Textarea — lined paper style */}
+          <div className="relative">
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              rows={compact ? 4 : 6}
+              className="w-full resize-none bg-transparent px-0 py-1 text-sm text-[#0d4f2a] outline-none placeholder:text-[#2d6e47]/50 leading-7"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(transparent, transparent 27px, #7ab89455 27px, #7ab89455 28px)",
+              }}
+              placeholder={
+                type === "QUESTION"
+                  ? "What question are you carrying today?"
+                  : "What did you solve, and why does it matter?"
+              }
+            />
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-1">
+            {compact && (
+              <Link
+                href={`/journal/${userId}`}
+                className="text-xs text-[#2d6e47] underline underline-offset-2 hover:text-[#0d4f2a]"
+              >
+                Open Journal
+              </Link>
             )}
             <Button
               type="button"
               size="sm"
               onClick={saveEntry}
               disabled={saving || loadingPrompt}
-              className="rounded-full"
+              className="ml-auto rounded-full bg-[#12753e] text-white hover:bg-[#0d4f2a] text-xs px-5"
             >
-              {saving ? "Saving..." : "Save Entry"}
+              {saving ? "Pinning…" : "Pin it"}
             </Button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

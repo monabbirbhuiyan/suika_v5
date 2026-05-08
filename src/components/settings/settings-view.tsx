@@ -59,15 +59,15 @@ const SettingsView = (props: Props) => {
   return (
     <div className="mt-8 flex gap-8">
       {/* Tab Naviagation */}
-      <nav className="flex flex-col gap-1 w-48 shrink-0">
+      <nav className="flex flex-col gap-1 w-52 shrink-0 rounded-xl border border-(--brand-green)/15 bg-brand-surface/65 p-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm text-accent transition-colors w-full text-left ${
+            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors w-full text-left ${
               activeTab === tab.id
-                ? "bg-sage/15 text-sage font-medium"
-                : "text-muted-foreground hover:text-foreground hover:bg-card"
+                ? "bg-brand-green-100 text-brand-green font-medium"
+                : "text-[#5f7a70] hover:text-brand-ink hover:bg-white"
             }`}
           >
             {tab.icon && <tab.icon className="w-4 h-4" />}
@@ -79,7 +79,7 @@ const SettingsView = (props: Props) => {
       {/* tab content */}
       <motion.div
         key={activeTab}
-        className="flex-1 min-w-0"
+        className="flex-1 min-w-0 rounded-xl border border-(--brand-green)/15 bg-white p-4 md:p-5"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}

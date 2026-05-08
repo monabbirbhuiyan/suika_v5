@@ -7,6 +7,7 @@ import {
 } from "../lib/ai";
 import { serializeAiSuggestionReason } from "@/lib/ai-suggestion";
 import { getServerSession } from "./get-session";
+import { Prisma } from "@/generated/prisma";
 
 const byLowerTitle = <T extends { title: string }>(items: T[]) => {
   const map = new Map<string, T>();
@@ -174,38 +175,25 @@ export const acceptAiSuggestion = async (
     return null;
   }
 
-  const suggestion = await prisma.aiSuggestion.findFirst({
-    where: {
-      id: suggestionId,
-      problemSpaceId,
-      problemSpace: {
-        userId: user.id,
+  try {
+    return await prisma.aiSuggestion.update({
+      where: {
+        id: suggestionId,
+        problemSpaceId,
+        problemSpace: { userId: user.id },
       },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!suggestion) {
-    return null;
+      data: { accepted: true, dismissedAt: null },
+      select: { id: true, accepted: true },
+    });
+  } catch (e) {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2025"
+    ) {
+      return null;
+    }
+    throw e;
   }
-
-  const updated = await prisma.aiSuggestion.update({
-    where: {
-      id: suggestion.id,
-    },
-    data: {
-      accepted: true,
-      dismissedAt: null,
-    },
-    select: {
-      id: true,
-      accepted: true,
-    },
-  });
-
-  return updated;
 };
 
 export const dismissAiSuggestion = async (
@@ -219,35 +207,23 @@ export const dismissAiSuggestion = async (
     return null;
   }
 
-  const suggestion = await prisma.aiSuggestion.findFirst({
-    where: {
-      id: suggestionId,
-      problemSpaceId,
-      problemSpace: {
-        userId: user.id,
+  try {
+    return await prisma.aiSuggestion.update({
+      where: {
+        id: suggestionId,
+        problemSpaceId,
+        problemSpace: { userId: user.id },
       },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!suggestion) {
-    return null;
+      data: { dismissedAt: new Date() },
+      select: { id: true, dismissedAt: true },
+    });
+  } catch (e) {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2025"
+    ) {
+      return null;
+    }
+    throw e;
   }
-
-  const updated = await prisma.aiSuggestion.update({
-    where: {
-      id: suggestion.id,
-    },
-    data: {
-      dismissedAt: new Date(),
-    },
-    select: {
-      id: true,
-      dismissedAt: true,
-    },
-  });
-
-  return updated;
 };

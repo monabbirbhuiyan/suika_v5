@@ -29,6 +29,14 @@
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+  --color-brand-green: var(--brand-green);
+  --color-brand-green-700: var(--brand-green-700);
+  --color-brand-green-100: var(--brand-green-100);
+  --color-brand-red: var(--brand-red);
+  --color-brand-red-700: var(--brand-red-700);
+  --color-brand-red-100: var(--brand-red-100);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-surface: var(--brand-surface);
   --color-sage: var(--sage);
   --color-soft-blue: var(--soft-blue);
   --color-gentle-coral: var(--gentle-coral);
@@ -87,6 +95,16 @@
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0.045 260.6);
 
+    /* Logo-driven brand palette (logo.svg) */
+    --brand-green: #12753e;
+    --brand-green-700: #0d582f;
+    --brand-green-100: #dff3e7;
+    --brand-red: #bc000e;
+    --brand-red-700: #8e000a;
+    --brand-red-100: #fde6e8;
+    --brand-ink: #1f2a24;
+    --brand-surface: #f6fbf8;
+
     --sage: oklch(66.03% 0.038 136.1);
     --soft-blue: oklch(70.95% 0.081 248.47);
     --gentle-coral: oklch(73.91% 0.0952 31.68);
@@ -127,6 +145,15 @@
     --sidebar-accent-foreground: oklch(0.97 0 0);
     --sidebar-border: oklch(0.269 0 0);
     --sidebar-ring: oklch(0.708 0.045 260.6);
+
+    --brand-green: #12753e;
+    --brand-green-700: #0d582f;
+    --brand-green-100: #dff3e7;
+    --brand-red: #bc000e;
+    --brand-red-700: #8e000a;
+    --brand-red-100: #fde6e8;
+    --brand-ink: #1f2a24;
+    --brand-surface: #f6fbf8;
 
 
      --sage: 100 10% 55%;

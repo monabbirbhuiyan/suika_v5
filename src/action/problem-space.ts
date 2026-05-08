@@ -12,22 +12,18 @@ export const getProblemSpaces = async () => {
     return null;
   }
 
-  const problemSpaces = await prisma.user.findMany({
-    where: { id: user.id },
+  const problemSpaces = await prisma.problemSpace.findMany({
+    where: { userId: user.id },
     include: {
-      problemSpaces: {
-        include: {
-          fragments: {
-            select: {
-              type: true,
-            },
-          },
+      fragments: {
+        select: {
+          type: true,
         },
       },
     },
   });
 
-  return { problemSpaces: problemSpaces[0]?.problemSpaces || [] };
+  return { problemSpaces };
 };
 
 export const createProblemSpace = async (data: any) => {

@@ -76,7 +76,8 @@ const Navmain = ({ userId }: Props) => {
         <SidebarMenu className="space-y-1">
           {/* Main Navigation items */}
           {items.map((item) => {
-            let isActive;
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton
@@ -84,9 +85,9 @@ const Navmain = ({ userId }: Props) => {
                   tooltip={item.label}
                   isActive={isActive}
                   className={cn(
-                    "h-12 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all",
+                    "h-12 text-brand-ink hover:bg-brand-green-100/45 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all",
                     isActive &&
-                      "bg-linear-to-r from-blue-50 to-purple-50 border-l-2 border-blue-500 font-semibold",
+                      "bg-linear-to-r from-brand-green-100/70 to-brand-red-100/45 border-l-2 border-brand-green font-semibold",
                   )}
                 >
                   <Link
@@ -97,13 +98,13 @@ const Navmain = ({ userId }: Props) => {
                       className={cn(
                         "h-5 w-5 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-colors",
                         loadingLink === item.href && "animate-pulse",
-                        isActive && "text-blue-600 dark:text-blue-400",
+                        isActive && "text-brand-green",
                       )}
                     />
                     <span
                       className={cn(
                         "group-data-[collapsible=icon]:hidden text-base",
-                        isActive && "text-blue-600 dark:text-blue-400",
+                        isActive && "text-brand-green",
                       )}
                     >
                       {item.label}
@@ -112,7 +113,7 @@ const Navmain = ({ userId }: Props) => {
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute right-2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin group-data-[collapsible=icon]:hidden"
+                        className="absolute right-2 w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin group-data-[collapsible=icon]:hidden"
                       />
                     )}
                   </Link>

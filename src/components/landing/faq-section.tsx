@@ -36,10 +36,10 @@ const faqs = [
 
 const FAQSection = () => {
   return (
-    <section className="py-24 px-6 bg-card/50">
+    <section className="py-24 px-6 bg-white">
       <div className="max-w-2xl mx-auto">
         <motion.h2
-          className="font-light text-3xl md:text-4xl text-center text-foreground mb-4"
+          className="font-light text-3xl md:text-4xl text-center text-brand-ink mb-4"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -48,7 +48,7 @@ const FAQSection = () => {
           Questions & Answers
         </motion.h2>
         <motion.p
-          className="text-center text-muted-foreground max-w-lg mx-auto mb-12 leading-relaxed"
+          className="text-center text-[#577368] max-w-lg mx-auto mb-12 leading-relaxed"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -67,12 +67,12 @@ const FAQSection = () => {
               <AccordionItem
                 key={i}
                 value={`item-${i}`}
-                className="border-border/60"
+                className="border-(--brand-green)/18"
               >
-                <AccordionTrigger className="text-left text-foreground hover:text-foreground/80 font-sans text-base py-5">
+                <AccordionTrigger className="text-left text-brand-ink hover:text-brand-green font-sans text-base py-5">
                   {faq.q}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground text-sm leading-relaxed pb-5">
+                <AccordionContent className="text-[#4c6359] text-sm leading-relaxed pb-5">
                   {faq.a}
                 </AccordionContent>
               </AccordionItem>

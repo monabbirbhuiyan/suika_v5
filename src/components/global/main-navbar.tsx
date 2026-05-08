@@ -153,14 +153,14 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-border/40 bg-background px-4 py-3">
-      <h1 className="text-2xl font-light text-foreground">
+    <header className="flex items-center justify-between gap-4 border-b border-(--brand-green)/15 bg-brand-surface/80 backdrop-blur-sm px-4 py-3">
+      <h1 className="text-2xl font-light text-brand-ink">
         {formatPageTitle(pathname)}
       </h1>
 
       <div className="flex items-center gap-3">
-        <div className="hidden md:flex items-center rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground mr-2">Quote</span>
+        <div className="hidden md:flex items-center rounded-md border border-(--brand-green)/20 bg-white px-3 py-1.5 text-xs text-[#5c786e]">
+          <span className="font-medium text-brand-ink mr-2">Quote</span>
           <span>{quote}</span>
         </div>
 
@@ -168,15 +168,15 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
           <button
             type="button"
             onClick={() => setOpenMenu((prev) => !prev)}
-            className="rounded-full ring-offset-background transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="rounded-full ring-offset-background transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-brand-green/40"
           >
             <UserAvatar name={userName} image={userImage} className="size-9" />
           </button>
 
           {openMenu ? (
-            <div className="absolute right-0 mt-2 w-56 rounded-md border border-border bg-background p-3 shadow-md z-50">
-              <p className="text-xs text-muted-foreground">Current plan</p>
-              <p className="text-sm font-medium text-foreground mt-0.5">
+            <div className="absolute right-0 mt-2 w-56 rounded-md border border-(--brand-green)/20 bg-white p-3 shadow-md z-50">
+              <p className="text-xs text-[#5f7a71]">Current plan</p>
+              <p className="text-sm font-medium text-brand-ink mt-0.5">
                 {currentPlan}
               </p>
 

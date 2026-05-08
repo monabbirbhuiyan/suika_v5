@@ -27,7 +27,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-[#FAFAF8] border-t border-gray-100 px-6 py-12">
+    <footer className="bg-brand-surface border-t border-(--brand-green)/15 px-6 py-12">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
           {/* Brand */}
@@ -39,9 +39,9 @@ const Footer = () => {
                 width={25}
                 height={25}
               />
-              <h3 className="text-2xl font-light text-[#2D2D2D]">SUIKA</h3>
+              <h3 className="text-2xl font-light text-brand-ink">SUIKA</h3>
             </div>
-            <p className="text-sm text-[#8A8A8A] leading-relaxed">
+            <p className="text-sm text-[#5b766c] leading-relaxed">
               Making the invisible work of thinking visible.
             </p>
           </div>
@@ -49,7 +49,7 @@ const Footer = () => {
           {/* Link columns */}
           {Object.entries(links).map(([category, items]) => (
             <div key={category}>
-              <h4 className="font-medium text-[#4A4A4A] mb-3 text-sm">
+              <h4 className="font-medium text-[#355046] mb-3 text-sm">
                 {category}
               </h4>
               <ul className="space-y-2">
@@ -57,7 +57,7 @@ const Footer = () => {
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      className="text-sm text-[#8A8A8A] hover:text-[#2D2D2D] transition-colors"
+                      className="text-sm text-[#5f7a70] hover:text-brand-green transition-colors"
                     >
                       {link.label}
                     </a>
@@ -69,14 +69,14 @@ const Footer = () => {
         </div>
 
         {/* Bottom bar */}
-        <div className="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-[#AAAAAA]">
+        <div className="pt-8 border-t border-(--brand-green)/15 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-[#6f877d]">
             ©{new Date().getFullYear()} SUIKA. Built with care for thinkers.
           </p>
 
-          <div className="flex items-center gap-2 text-sm text-[#AAAAAA]">
+          <div className="flex items-center gap-2 text-sm text-[#6f877d]">
             <span>Made for humans who think</span>
-            <Heart className="w-4 h-4 text-[#B8908F]" />
+            <Heart className="w-4 h-4 text-brand-red" />
           </div>
         </div>
       </div>
