@@ -39,16 +39,7 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-3xl text-foreground">
-              Problem Spaces
-            </h1>
-            <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
-              Each space holds a question you are working through. Open one to
-              continue, or start fresh.
-            </p>
-          </div>
+        <div className="flex items-center justify-end">
           <Button
             onClick={() => setCreateOpen(true)}
             className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 transition-opacity shrink-0"

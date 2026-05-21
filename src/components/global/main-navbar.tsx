@@ -31,24 +31,64 @@ const quotes = [
   "Momentum beats perfection, every single time.",
 ];
 
-const formatPageTitle = (pathname: string) => {
+const getPageMeta = (pathname: string) => {
   const segments = pathname.split("/").filter(Boolean);
-  if (segments.length === 0) return "Workspace";
+  if (segments.length === 0) {
+    return {
+      title: "Workspace",
+      subtitle: "A central place to keep your thinking organized.",
+    };
+  }
 
   const section = segments[0];
 
-  if (section === "dashboard") return "Dashboard";
-  if (section === "journal") return "Journal";
-  if (section === "settings") return "Settings";
-  if (section === "problem-spaces" && segments.length > 2) {
-    return "Problem Space";
+  if (section === "dashboard") {
+    return {
+      title: "Dashboard",
+      subtitle:
+        "A compact view of momentum, bottlenecks, and decision quality across your problem spaces.",
+    };
   }
-  if (section === "problem-spaces") return "Problem Spaces";
 
-  return section
+  if (section === "journal") {
+    return {
+      title: "Journal",
+      subtitle: "Pin your thoughts. Questions and breakthroughs.",
+    };
+  }
+
+  if (section === "settings") {
+    return {
+      title: "Settings",
+      subtitle: "Your space, your rules. Adjust everything to feel right.",
+    };
+  }
+
+  if (section === "problem-spaces" && segments.length > 2) {
+    return {
+      title: "Problem Space",
+      subtitle:
+        "Map relationships, test assumptions, and conclude with clarity.",
+    };
+  }
+
+  if (section === "problem-spaces") {
+    return {
+      title: "Problem Spaces",
+      subtitle:
+        "Each space holds a question you are working through. Open one to continue, or start fresh.",
+    };
+  }
+
+  const title = section
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+
+  return {
+    title,
+    subtitle: "",
+  };
 };
 
 const fetchMotivationalQuote = async (): Promise<QuotePayload | null> => {
@@ -99,6 +139,7 @@ const fetchMotivationalQuote = async (): Promise<QuotePayload | null> => {
 
 const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
   const pathname = usePathname();
+  const pageMeta = React.useMemo(() => getPageMeta(pathname), [pathname]);
   const router = useRouter();
   const [openMenu, setOpenMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -154,9 +195,12 @@ const MainNavbar = ({ userName, userImage, currentPlan }: Props) => {
 
   return (
     <header className="flex items-center justify-between gap-4 border-b border-(--brand-green)/15 bg-brand-surface/80 backdrop-blur-sm px-4 py-3">
-      <h1 className="text-2xl font-light text-brand-ink">
-        {formatPageTitle(pathname)}
-      </h1>
+      <div>
+        <h1 className="text-2xl font-light text-brand-ink">{pageMeta.title}</h1>
+        {pageMeta.subtitle ? (
+          <p className="text-xs text-[#5f7a70]">{pageMeta.subtitle}</p>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-3">
         <div className="hidden md:flex items-center rounded-md border border-(--brand-green)/20 bg-white px-3 py-1.5 text-xs text-[#5c786e]">

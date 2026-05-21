@@ -1,8 +1,29 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { decideProblemSpaceClarityProgress } from "@/lib/ai";
 import { getServerSession } from "./get-session";
+
+const isTransientDbTimeout = (error: unknown) => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "ETIMEDOUT") {
+      return true;
+    }
+
+    const message = error.message?.toUpperCase() ?? "";
+    if (message.includes("ETIMEDOUT")) {
+      return true;
+    }
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.toUpperCase();
+    return message.includes("ETIMEDOUT") || message.includes("P1001");
+  }
+
+  return false;
+};
 
 export const getProblemSpaces = async () => {
   const session = await getServerSession();
@@ -104,42 +125,56 @@ export const getProblemSpaceById = async (id: string) => {
     return null;
   }
 
-  const problemSpace = await prisma.problemSpace.findFirst({
-    where: {
-      id,
-      userId: user.id,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
+  let problemSpace = null;
+
+  try {
+    problemSpace = await prisma.problemSpace.findFirst({
+      where: {
+        id,
+        userId: user.id,
       },
-      fragments: {
-        orderBy: {
-          sortOrder: "asc",
-        },
-      },
-      graphNodes: {
-        include: {
-          fragments: {
-            orderBy: {
-              sortOrder: "asc",
-            },
-          },
-          pins: {
-            orderBy: {
-              sortOrder: "asc",
-            },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
           },
         },
+        fragments: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
+        graphNodes: {
+          include: {
+            fragments: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
+            pins: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
+          },
+        },
+        suggestions: true,
       },
-      suggestions: true,
-    },
-  });
+    });
+  } catch (error) {
+    if (isTransientDbTimeout(error)) {
+      console.error("Timed out while loading problem space", {
+        id,
+        userId: user.id,
+      });
+      return null;
+    }
+
+    throw error;
+  }
 
   if (!problemSpace) {
     return null;
