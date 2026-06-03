@@ -264,7 +264,7 @@ const fetchClarityConnections = async (
   }
 };
 
-const ClarityFlowNode = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
+const ClarityFlowNodeComponent = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
   return (
     <div style={{ width: NODE_WIDTH }}>
       <Card
@@ -342,6 +342,8 @@ const ClarityFlowNode = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
   );
 };
 
+const ClarityFlowNode = React.memo(ClarityFlowNodeComponent);
+
 // -------------------------------------------------------------
 // REFINED ORTHOGONAL CIRCUIT ROUTING
 // -------------------------------------------------------------
@@ -382,7 +384,7 @@ const buildCircuitPath = (
   }
 };
 
-const ClarityFlowEdge = ({
+const ClarityFlowEdgeComponent = ({
   id,
   sourceX,
   sourceY,
@@ -480,6 +482,8 @@ const ClarityFlowEdge = ({
     </>
   );
 };
+
+const ClarityFlowEdge = React.memo(ClarityFlowEdgeComponent);
 
 const nodeTypes = {
   clarityNode: ClarityFlowNode,
@@ -631,6 +635,15 @@ const ClarityGraphCanvasInner = ({
     return map;
   }, [columns, graphNodes]);
 
+  const labelsByNode = React.useMemo(() => {
+    const map = new Map<string, string[]>();
+    graphNodes.forEach((node) => {
+      const nodeFragments = orderedFragmentsByNode.get(node.id) ?? [];
+      map.set(node.id, getFragmentTypeLabels(nodeFragments));
+    });
+    return map;
+  }, [graphNodes, orderedFragmentsByNode]);
+
   const dotPointsByFragmentId = React.useMemo(() => {
     const map = new Map<string, DotPoint>();
 
@@ -740,13 +753,14 @@ const ClarityGraphCanvasInner = ({
     const node = graphNodes.find((item) => item.id === selectedNodeId);
     if (!node) return null;
     const nodeFragments = orderedFragmentsByNode.get(node.id) ?? [];
+    const labels = labelsByNode.get(node.id) ?? [];
 
     return {
       node,
       nodeFragments,
-      labels: getFragmentTypeLabels(nodeFragments),
+      labels,
     };
-  }, [graphNodes, orderedFragmentsByNode, selectedNodeId]);
+  }, [graphNodes, labelsByNode, orderedFragmentsByNode, selectedNodeId]);
 
   const selectedConnection = React.useMemo(() => {
     if (!selectedConnectionId) return null;
@@ -793,12 +807,12 @@ const ClarityGraphCanvasInner = ({
           nodeId: node.id,
           title: node.title,
           fragments: nodeFragments,
-          labels: getFragmentTypeLabels(nodeFragments),
+          labels: labelsByNode.get(node.id) ?? [],
           onSelectNode: setSelectedNodeId,
         },
       };
     });
-  }, [graphNodes, nodePositions, orderedFragmentsByNode]);
+  }, [graphNodes, labelsByNode, nodePositions, orderedFragmentsByNode]);
 
   const flowEdges = React.useMemo(() => {
     const corridorCounts = new Map<string, number>();

@@ -27,6 +27,26 @@ const typeConfig: Array<{
   { type: "CONCLUSION", label: "Conclusion", colorClass: "bg-[#52c41a]" },
 ];
 
+const getFragmentTypeCount = (fragments?: Pick<Fragment, "type">[]) => {
+  const counts: Record<Fragment["type"], number> = {
+    QUESTION: 0,
+    IDEA: 0,
+    OBSERVATION: 0,
+    CONSTRAINS: 0,
+    CONCLUSION: 0,
+  };
+
+  if (!fragments || fragments.length === 0) {
+    return counts;
+  }
+
+  fragments.forEach((fragment) => {
+    counts[fragment.type] += 1;
+  });
+
+  return counts;
+};
+
 const ProblemSpaceContainer = ({ problemSpace }: Props) => {
   const [createOpen, setCreateOpen] = React.useState(false);
   const pathname = usePathname();
@@ -60,14 +80,11 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
           {spaces.map((space) =>
             (() => {
               const fragmentCount = space.fragments?.length ?? 0;
+              const typeCount = getFragmentTypeCount(space.fragments);
               const counts = typeConfig.map((config) => {
-                const count =
-                  space.fragments?.filter(
-                    (fragment) => fragment.type === config.type,
-                  ).length ?? 0;
                 return {
                   ...config,
-                  count,
+                  count: typeCount[config.type],
                 };
               });
 

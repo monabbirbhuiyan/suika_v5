@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import {
   AiSuggestion,
   GraphNode,
@@ -15,10 +16,23 @@ import LoadingSpinner from "../global/loading-spinner";
 import { Button } from "../ui/button";
 import CreateNodeForm from "../forms/create-node-form";
 import ProblemSpaceNodes from "./node";
-import ClarityGraphCanvas from "@/components/problem-space/clarity-graph-canvas";
 import AiWeavingPanel from "./ai-weaving-panel";
 import ConcludeProblemSpacePanel from "./conclude-problem-space-panel";
 import EditProblemSpaceForm from "../forms/edit-problem-space-form";
+
+const ClarityGraphCanvas = dynamic(
+  () => import("@/components/problem-space/clarity-graph-canvas"),
+  {
+    ssr: false,
+    loading: () => (
+      <LoadingSpinner
+        variant="inline"
+        label="Loading Clarity Graph..."
+        className="min-h-20"
+      />
+    ),
+  },
+);
 
 type Props = {
   user: User;

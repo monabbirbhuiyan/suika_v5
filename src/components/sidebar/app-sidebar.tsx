@@ -17,14 +17,6 @@ type Props = {
 };
 
 const AppSidebar = (props: Props) => {
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
   return (
     <Sidebar
       className="z-30 border-r border-(--brand-green)/15 bg-brand-surface/90"

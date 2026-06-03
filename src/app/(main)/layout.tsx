@@ -33,7 +33,7 @@ const MainLayout = async ({ children }: Props) => {
     : "Free";
 
   return (
-    <SidebarProvider suppressHydrationWarning>
+    <SidebarProvider defaultOpen={false} suppressHydrationWarning>
       <AppSidebarContainer />
 
       <SidebarInset>

@@ -87,7 +87,7 @@ const Navmain = ({ userId }: Props) => {
                   className={cn(
                     "h-12 text-brand-ink hover:bg-brand-green-100/45 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all",
                     isActive &&
-                      "bg-linear-to-r from-brand-green-100/70 to-brand-red-100/45 border-l-2 border-brand-green font-semibold",
+                      "bg-brand-green-100/60 border-l-2 border-brand-green font-semibold",
                   )}
                 >
                   <Link
