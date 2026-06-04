@@ -1,19 +1,9 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 
 const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
-const IS_LOCAL_PROVIDER = ACTIVE_AI_PROVIDER === "local";
-const IS_GEMINI_PROVIDER = ACTIVE_AI_PROVIDER === "gemini";
 
 const DEFAULT_CHAT_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-2.5-flash";
-const DEFAULT_QUOTE_MODEL =
-  process.env.GOOGLE_AI_QUOTE_MODEL ?? "gemini-2.5-pro";
-const DEFAULT_WEAVING_MODEL =
-  process.env.GOOGLE_AI_WEAVING_MODEL ?? "gemini-2.5-flash";
-const DEFAULT_RELATIONSHIP_MODEL =
-  process.env.GOOGLE_AI_RELATIONSHIP_MODEL ?? "gemini-2.5-pro";
-const DEFAULT_CONCLUSION_MODEL =
-  process.env.GOOGLE_AI_CONCLUSION_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_NVIDIA_MODEL =
   process.env.NVIDIA_AI_MODEL ?? "meta/llama-3.1-8b-instruct";
 const DEFAULT_NVIDIA_CHAT_MODEL =
@@ -26,44 +16,8 @@ const DEFAULT_NVIDIA_CONCLUSION_MODEL =
   process.env.NVIDIA_AI_CONCLUSION_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
 const NVIDIA_THINKING_MODE =
   (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
-const DEFAULT_LOCAL_BASE_URL =
-  process.env.LOCAL_AI_BASE_URL ?? "http://127.0.0.1:8000/v1";
-const DEFAULT_LOCAL_API_KEY = process.env.LOCAL_AI_API_KEY ?? "local-dev";
-const DEFAULT_LOCAL_MODEL =
-  process.env.LOCAL_AI_MODEL ?? "artifacts/legal-cpt-3050ti";
-const DEFAULT_LOCAL_CHAT_MODEL =
-  process.env.LOCAL_AI_CHAT_MODEL ?? DEFAULT_LOCAL_MODEL;
-const DEFAULT_LOCAL_WEAVING_MODEL =
-  process.env.LOCAL_AI_WEAVING_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
-const DEFAULT_LOCAL_RELATIONSHIP_MODEL =
-  process.env.LOCAL_AI_RELATIONSHIP_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
-const DEFAULT_LOCAL_CONCLUSION_MODEL =
-  process.env.LOCAL_AI_CONCLUSION_MODEL ?? DEFAULT_LOCAL_CHAT_MODEL;
 
 const MAX_RELATIONSHIP_EDGES = 8;
-const QUOTE_MIN_RETRY_COOLDOWN_MS = 45_000;
-const QUOTE_MAX_RETRY_COOLDOWN_MS = 10 * 60 * 1000;
-const QUOTE_HARD_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-
-type QuoteCircuitState = {
-  blockedUntil: number;
-  lastLogAt: number;
-};
-
-const quoteCircuitState = (() => {
-  const globalRef = globalThis as typeof globalThis & {
-    __suikaQuoteCircuitState?: QuoteCircuitState;
-  };
-
-  if (!globalRef.__suikaQuoteCircuitState) {
-    globalRef.__suikaQuoteCircuitState = {
-      blockedUntil: 0,
-      lastLogAt: 0,
-    };
-  }
-
-  return globalRef.__suikaQuoteCircuitState;
-})();
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -164,56 +118,6 @@ export const suikaFallbackQuotes = [
   "Momentum beats perfection, every single time.",
 ];
 
-const relationshipSchema = {
-  type: SchemaType.ARRAY,
-  description: "Strong logical relationships between fragments.",
-  items: {
-    type: SchemaType.OBJECT,
-    properties: {
-      source_id: { type: SchemaType.STRING },
-      target_id: { type: SchemaType.STRING },
-      relationship: {
-        type: SchemaType.STRING,
-        enum: ["CONTRADICTS", "CLARIFIES", "RESOLVES"],
-      },
-      rationale: { type: SchemaType.STRING },
-    },
-    required: ["source_id", "target_id", "relationship", "rationale"],
-  },
-} as const;
-
-const weavingSchema = {
-  type: SchemaType.ARRAY,
-  description: "Diagnostic weaving suggestions.",
-  items: {
-    type: SchemaType.OBJECT,
-    properties: {
-      kind: {
-        type: SchemaType.STRING,
-        enum: ["MISSING_QUESTION", "EVIDENCE_GAP"],
-      },
-      nodeTitle: { type: SchemaType.STRING },
-      focusFragmentId: { type: SchemaType.STRING },
-      reason: { type: SchemaType.STRING },
-      recommendation: { type: SchemaType.STRING },
-      rationale: { type: SchemaType.STRING },
-      strength: {
-        type: SchemaType.STRING,
-        enum: ["STRONG", "MEDIUM", "GENTLE"],
-      },
-    },
-    required: [
-      "kind",
-      "nodeTitle",
-      "focusFragmentId",
-      "reason",
-      "recommendation",
-      "rationale",
-      "strength",
-    ],
-  },
-} as const;
-
 const getGemini = () => {
   const readApiKey = () => {
     return (
@@ -243,36 +147,22 @@ const getGemini = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
-const shouldUseNvidia = () => !IS_GEMINI_PROVIDER && !IS_LOCAL_PROVIDER;
-
-const getOpenAiCompatibleBaseUrl = () => {
-  return IS_LOCAL_PROVIDER
-    ? DEFAULT_LOCAL_BASE_URL
-    : "https://integrate.api.nvidia.com/v1";
-};
+const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 const getActiveChatModel = () => {
-  return IS_LOCAL_PROVIDER
-    ? DEFAULT_LOCAL_CHAT_MODEL
-    : DEFAULT_NVIDIA_CHAT_MODEL;
+  return DEFAULT_NVIDIA_CHAT_MODEL;
 };
 
 const getActiveWeavingModel = () => {
-  return IS_LOCAL_PROVIDER
-    ? DEFAULT_LOCAL_WEAVING_MODEL
-    : DEFAULT_NVIDIA_WEAVING_MODEL;
+  return DEFAULT_NVIDIA_WEAVING_MODEL;
 };
 
 const getActiveRelationshipModel = () => {
-  return IS_LOCAL_PROVIDER
-    ? DEFAULT_LOCAL_RELATIONSHIP_MODEL
-    : DEFAULT_NVIDIA_RELATIONSHIP_MODEL;
+  return DEFAULT_NVIDIA_RELATIONSHIP_MODEL;
 };
 
 const getActiveConclusionModel = () => {
-  return IS_LOCAL_PROVIDER
-    ? DEFAULT_LOCAL_CONCLUSION_MODEL
-    : DEFAULT_NVIDIA_CONCLUSION_MODEL;
+  return DEFAULT_NVIDIA_CONCLUSION_MODEL;
 };
 
 const logActiveAiProvider = () => {
@@ -284,29 +174,27 @@ const logActiveAiProvider = () => {
     return;
   }
 
-  const provider = IS_LOCAL_PROVIDER
-    ? "local"
-    : shouldUseNvidia()
-      ? "nvidia"
-      : "gemini";
+  const provider = ACTIVE_AI_PROVIDER === "gemini" ? "gemini" : "nvidia";
   console.log(`[AI_PROVIDER] active=${provider}`);
   globalRef.__suikaAiProviderLogged = true;
 };
 
 logActiveAiProvider();
 
+let nvidiaClient: OpenAI | null = null;
+
 const getNvidiaClient = () => {
-  return new OpenAI({
-    apiKey: getNvidiaApiKey(),
-    baseURL: getOpenAiCompatibleBaseUrl(),
-  });
+  if (!nvidiaClient) {
+    nvidiaClient = new OpenAI({
+      apiKey: getNvidiaApiKey(),
+      baseURL: NVIDIA_BASE_URL,
+    });
+  }
+
+  return nvidiaClient;
 };
 
 const getNvidiaApiKey = () => {
-  if (IS_LOCAL_PROVIDER) {
-    return DEFAULT_LOCAL_API_KEY;
-  }
-
   const readApiKey = () => {
     return (process.env.NVIDIA_API_KEY ?? process.env.NV_API_KEY)?.trim();
   };
@@ -379,18 +267,14 @@ const nvidiaChatCompletion = async ({
       top_p: 0.95,
       max_tokens: maxTokens,
       stream: false,
-      ...(thinking && !IS_LOCAL_PROVIDER
-        ? { chat_template_kwargs: { thinking: true } }
-        : {}),
+      ...(thinking ? { chat_template_kwargs: { thinking: true } } : {}),
     } as any);
 
     const content = completion.choices?.[0]?.message?.content;
     return extractNvidiaSdkText(content);
   };
 
-  const first = await requestCompletion(
-    NVIDIA_THINKING_MODE && !IS_LOCAL_PROVIDER,
-  );
+  const first = await requestCompletion(NVIDIA_THINKING_MODE);
   if (first) {
     return first;
   }
@@ -849,63 +733,6 @@ const isUsefulQuote = (quote: string) => {
 
   const lettersOnly = quote.replace(/[^a-zA-Z]/g, "");
   return lettersOnly.length >= 18;
-};
-
-const isQuotaExceededError = (error: unknown): boolean => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("429") ||
-    lower.includes("quota exceeded") ||
-    lower.includes("too many requests")
-  );
-};
-
-const isModelNotFoundError = (error: unknown): boolean => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("404") &&
-    (lower.includes("not found") ||
-      lower.includes("not supported for generatecontent"))
-  );
-};
-
-const extractRetryDelayMs = (message: string): number | null => {
-  const retryInSeconds = /retry in\s+([\d.]+)s/i.exec(message);
-  if (retryInSeconds?.[1]) {
-    return Math.round(Number(retryInSeconds[1]) * 1000);
-  }
-
-  const retryDelayField = /"retryDelay":"(\d+)s"/i.exec(message);
-  if (retryDelayField?.[1]) {
-    return Number(retryDelayField[1]) * 1000;
-  }
-
-  return null;
-};
-
-const isHardQuotaZeroError = (error: unknown): boolean => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  return /limit:\s*0/i.test(message);
 };
 
 const compactErrorMessage = (message: string) => {
@@ -1533,7 +1360,6 @@ export const generateSuikaMotivationalQuote = async () => {
           ? error.message
           : "Unknown quote generation error";
       console.warn(`[AI_QUOTE_FALLBACK] ${compactErrorMessage(message)}`);
-      quoteCircuitState.lastLogAt = Date.now();
     }
 
     return { quote: randomFallbackQuote(), source: "fallback" as const };
