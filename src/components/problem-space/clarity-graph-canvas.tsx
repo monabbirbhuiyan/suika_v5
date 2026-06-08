@@ -1,6 +1,5 @@
 "use client";
 
-import "@xyflow/react/dist/style.css";
 import React from "react";
 import {
   Background,
@@ -12,6 +11,7 @@ import {
   MarkerType,
   Node,
   NodeProps,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowInstance,
@@ -21,6 +21,7 @@ import { Fragment, GraphNode } from "@/generated/prisma";
 import { Card } from "../ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import GraphCanvasControls from "./graph-canvas-controls";
+import LoadingSpinner from "../global/loading-spinner";
 import NodeDetailsSheet from "./node-details-sheet";
 
 type Props = {
@@ -920,8 +921,7 @@ const ClarityGraphCanvasInner = ({
           <p>Canvas</p>
           <div className="flex items-center gap-3">
             <p>
-              {graphNodes.length} nodes · {resolvedConnections.length} AI links
-              {loadingConnections ? " (analyzing...)" : ""}
+              {graphNodes.length} nodes · {resolvedConnections.length} AI links{" "}
               {connectionsError ? " (analysis failed)" : ""}
             </p>
             <GraphCanvasControls
@@ -940,6 +940,11 @@ const ClarityGraphCanvasInner = ({
         ) : null}
 
         <div className="relative h-176 overflow-hidden rounded-lg border bg-background">
+          {loadingConnections ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+              <LoadingSpinner label="AI is analyzing nodes..." />
+            </div>
+          ) : null}
           <ReactFlow
             nodes={flowNodes}
             edges={flowEdges}
@@ -986,6 +991,11 @@ const ClarityGraphCanvasInner = ({
               color="rgba(100,116,139,0.52)"
             />
           </ReactFlow>
+          {/* Injecting styles via Panel to avoid module declaration issues with direct CSS imports in some environments */}
+          <Panel position="top-left" style={{ display: 'none' }}>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xyflow/react@12.3.0/dist/style.css" />
+          </Panel>
+
 
           <div className="pointer-events-none absolute bottom-2 right-2 rounded border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground">
             Canvas area: {Math.round(logicalWidth)} x{" "}
