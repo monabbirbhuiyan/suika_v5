@@ -9,11 +9,11 @@ const DEFAULT_NVIDIA_MODEL =
 const DEFAULT_NVIDIA_CHAT_MODEL =
   process.env.NVIDIA_AI_CHAT_MODEL ?? DEFAULT_NVIDIA_MODEL;
 const DEFAULT_NVIDIA_WEAVING_MODEL =
-  process.env.NVIDIA_AI_WEAVING_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+  process.env.NVIDIA_AI_WEAVING_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
 const DEFAULT_NVIDIA_RELATIONSHIP_MODEL =
-  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
 const DEFAULT_NVIDIA_CONCLUSION_MODEL =
-  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? DEFAULT_NVIDIA_CHAT_MODEL;
+  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
 const NVIDIA_THINKING_MODE =
   (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
 
@@ -228,6 +228,17 @@ type NvidiaChatCompletionOptions = {
   maxTokens: number;
   temperature: number;
   model?: string;
+  useChainOfThought?: boolean;
+};
+
+const isNemotronModel = (model?: string) => {
+  if (!model) return false;
+  const normalized = model.trim().toLowerCase();
+  return (
+    normalized.startsWith("nvidia/nemotron") ||
+    normalized === "nvidia/nemotron-3-super-120b-a12b" ||
+    normalized.includes("nemotron-3-super")
+  );
 };
 
 const extractNvidiaSdkText = (content: unknown): string => {
@@ -258,8 +269,19 @@ const nvidiaChatCompletion = async ({
   maxTokens,
   temperature,
   model = DEFAULT_NVIDIA_MODEL,
+  useChainOfThought,
 }: NvidiaChatCompletionOptions): Promise<string> => {
+  const enableThinking =
+    useChainOfThought ?? (isNemotronModel(model) ? true : NVIDIA_THINKING_MODE);
+
   const requestCompletion = async (thinking: boolean) => {
+    const thinkingConfig =
+      typeof useChainOfThought === "boolean"
+        ? { enable_thinking: useChainOfThought }
+        : thinking
+          ? { enable_thinking: true }
+          : {};
+
     const completion = await getNvidiaClient().chat.completions.create({
       model,
       messages,
@@ -267,19 +289,22 @@ const nvidiaChatCompletion = async ({
       top_p: 0.95,
       max_tokens: maxTokens,
       stream: false,
-      ...(thinking ? { chat_template_kwargs: { thinking: true } } : {}),
+      response_format: { type: "json_object" },
+      ...(Object.keys(thinkingConfig).length > 0
+        ? { chat_template_kwargs: thinkingConfig }
+        : {}),
     } as any);
 
     const content = completion.choices?.[0]?.message?.content;
     return extractNvidiaSdkText(content);
   };
 
-  const first = await requestCompletion(NVIDIA_THINKING_MODE);
+  const first = await requestCompletion(enableThinking);
   if (first) {
     return first;
   }
 
-  if (NVIDIA_THINKING_MODE) {
+  if (enableThinking) {
     const second = await requestCompletion(false);
     if (second) {
       return second;
@@ -317,7 +342,7 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
   const prompt =
     "You write one-line motivational quotes for Suika. Return exactly one plain-text sentence only. No markdown, no labels, no list.";
 
-  const raw = await nvidiaChatCompletion({
+  const raw = await chatWithGemini({
     messages: [
       { role: "system", content: prompt },
       {
@@ -328,13 +353,12 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
     ],
     maxTokens: 96,
     temperature: 0.85,
-    model: getActiveChatModel(),
   });
 
   const candidate = extractQuoteCandidate(raw);
 
   if (!candidate || !isUsefulQuote(candidate)) {
-    throw new Error("Nvidia model returned an unusable quote.");
+    throw new Error("Quoted model returned an unusable quote.");
   }
 
   return { quote: candidate as string, source: "ai" as const };
