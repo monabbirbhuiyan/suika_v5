@@ -90,6 +90,7 @@ export const plans = [
     ],
     cta: "Start for free",
     highlighted: false,
+    comingSoon: false,
   },
   {
     name: "Student Tier",
@@ -105,6 +106,7 @@ export const plans = [
     ],
     cta: "Choose student",
     highlighted: true,
+    comingSoon: false,
   },
   {
     name: "Pro Tier",
@@ -120,6 +122,7 @@ export const plans = [
     ],
     cta: "Choose pro",
     highlighted: false,
+    comingSoon: false,
   },
   {
     name: "Team Tier",
@@ -135,6 +138,7 @@ export const plans = [
     ],
     cta: "Choose team",
     highlighted: false,
+    comingSoon: false,
   },
   {
     name: "Legal",
@@ -150,6 +154,7 @@ export const plans = [
     ],
     cta: "Talk to us",
     highlighted: false,
+    comingSoon: false,
   },
   {
     name: "Legal+",
@@ -165,5 +170,6 @@ export const plans = [
     ],
     cta: "Contact sales",
     highlighted: false,
+    comingSoon: false,
   },
 ];
