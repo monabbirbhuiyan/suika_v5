@@ -59,7 +59,7 @@ export const fragmentTypes = [
   "CONCLUSION",
 ] as const;
 
-export const singleInstanceFragmentTypes = ["QUESTION", "CONCLUSION"] as const;
+export const singleInstanceFragmentTypes = ["QUESTION"] as const;
 
 export const fragmentSchema = z.object({
   content: z.string().min(1, "Content is required"),
