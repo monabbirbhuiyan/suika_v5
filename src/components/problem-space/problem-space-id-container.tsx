@@ -117,6 +117,7 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
         problemSpaceId={problemSpace.id}
         initialTitle={problemSpace.title}
         initialDescription={problemSpace.description}
+        userId={user.id}
       />
 
       {/* tabs */}

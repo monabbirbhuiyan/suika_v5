@@ -193,6 +193,12 @@ model ProblemSpace {
   description String?
   progress    Int       @default(0) // 0–100 clarity percentage
   sentiment   Sentiment @default(NEUTRAL)
+  
+  aiConnectionsCache     Json?
+  aiConnectionsSignature String?
+  aiConclusionCache      Json?
+  aiConclusionSignature  String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

@@ -5,15 +5,15 @@ const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
 
 const DEFAULT_CHAT_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_NVIDIA_MODEL =
-  process.env.NVIDIA_AI_MODEL ?? "meta/llama-3.1-8b-instruct";
+  process.env.NVIDIA_AI_MODEL ?? "google/gemma-3n-e2b-it";
 const DEFAULT_NVIDIA_CHAT_MODEL =
   process.env.NVIDIA_AI_CHAT_MODEL ?? DEFAULT_NVIDIA_MODEL;
 const DEFAULT_NVIDIA_WEAVING_MODEL =
-  process.env.NVIDIA_AI_WEAVING_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
+  process.env.NVIDIA_AI_WEAVING_MODEL ?? "google/gemma-3n-e2b-it";
 const DEFAULT_NVIDIA_RELATIONSHIP_MODEL =
-  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
+  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? "google/gemma-3n-e2b-it";
 const DEFAULT_NVIDIA_CONCLUSION_MODEL =
-  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? "nvidia/nemotron-3-super-120b-a12b";
+  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? "google/gemma-3n-e2b-it";
 const NVIDIA_THINKING_MODE =
   (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
 
@@ -565,15 +565,15 @@ const generateProblemSpaceConclusionWithNvidia = async (
       {
         role: "system",
         content:
-          "You are Suika Conclude AI. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Return only valid JSON.",
+          "You are a senior paralegal and legal researcher analyzing a problem space. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Base conclusions strictly on the provided facts. Explicitly state when jurisdictional or statutory context is missing. Return only valid JSON.",
       },
       {
         role: "user",
-        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit.\nReturn JSON with keys: conclusion, why, description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
+        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit based on logical and legal reasoning.\nReturn JSON with keys: conclusion, why (explain reasoning, identifying applicable statutes or case law principles if apparent), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
       },
     ],
     maxTokens: 2048,
-    temperature: 0.2,
+    temperature: 0.0,
     model: getActiveConclusionModel(),
   });
 
@@ -1547,10 +1547,10 @@ const relationSignalWeight = (reason: string) => {
   return 1.6;
 };
 
-// AI chooses relationships first, then we convert that signal map into a stable 0-100 clarity score.
-export const decideProblemSpaceClarityProgress = async (
+export const decideProblemSpaceClarityProgress = (
   input: ClarityConnectionInput[],
-): Promise<number> => {
+  suggestions: ClarityConnectionSuggestion[],
+): number => {
   const nodeCount = input.length;
   const allFragments = input.flatMap((node) => node.fragments);
   const fragmentCount = allFragments.length;
@@ -1562,8 +1562,6 @@ export const decideProblemSpaceClarityProgress = async (
   if (fragmentCount === 1) {
     return 12;
   }
-
-  const suggestions = await generateClarityGraphConnections(input);
 
   const coveredNodes = new Set<string>();
   const coveredFragments = new Set<string>();

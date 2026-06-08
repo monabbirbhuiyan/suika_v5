@@ -7,25 +7,6 @@ import { generateClarityGraphConnections } from "@/lib/ai";
 
 export const runtime = "nodejs";
 
-const CONNECTIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-
-type CachedConnections = {
-  expiresAt: number;
-  suggestions: Awaited<ReturnType<typeof generateClarityGraphConnections>>;
-};
-
-const connectionsCache = (() => {
-  const globalRef = globalThis as typeof globalThis & {
-    __suikaConnectionsCache?: Map<string, CachedConnections>;
-  };
-
-  if (!globalRef.__suikaConnectionsCache) {
-    globalRef.__suikaConnectionsCache = new Map<string, CachedConnections>();
-  }
-
-  return globalRef.__suikaConnectionsCache;
-})();
-
 const shouldLogConnections = () => {
   return (
     process.env.LOG_AI_CONNECTIONS === "true" ||
@@ -118,22 +99,27 @@ export async function POST(request: Request) {
       .filter((node) => node.fragments.length > 0);
 
     const signature = stableInputSignature(input);
-    const cached = connectionsCache.get(signature);
 
-    if (cached && cached.expiresAt > Date.now()) {
+    if (
+      problemSpace.aiConnectionsSignature === signature &&
+      problemSpace.aiConnectionsCache
+    ) {
+      const suggestions = problemSpace.aiConnectionsCache as Awaited<
+        ReturnType<typeof generateClarityGraphConnections>
+      >;
       const cachedCoveredNodeIds = new Set(
-        cached.suggestions.flatMap((edge) => [edge.fromNodeId, edge.toNodeId]),
+        suggestions.flatMap((edge) => [edge.fromNodeId, edge.toNodeId]),
       );
 
       return NextResponse.json({
-        suggestions: cached.suggestions,
+        suggestions: suggestions,
         meta: {
           nodeCount: input.length,
           fragmentCount: input.reduce(
             (total, node) => total + node.fragments.length,
             0,
           ),
-          suggestionCount: cached.suggestions.length,
+          suggestionCount: suggestions.length,
           coveredNodeCount: cachedCoveredNodeIds.size,
           uncoveredNodeCount: Math.max(
             0,
@@ -146,9 +132,15 @@ export async function POST(request: Request) {
 
     const suggestions = await generateClarityGraphConnections(input);
 
-    connectionsCache.set(signature, {
-      suggestions,
-      expiresAt: Date.now() + CONNECTIONS_CACHE_TTL_MS,
+    await prisma.problemSpace.update({
+      where: { id: problemSpace.id },
+      data: {
+        aiConnectionsSignature: signature,
+        // Prisma allows storing JSON arrays/objects directly if it maps to JSON scalar type
+        // if not, we can JSON.stringify(suggestions), but Prisma `Json?` accepts `any`.
+        // The type signature for Prisma Json is `Prisma.InputJsonValue`
+        aiConnectionsCache: suggestions,
+      },
     });
 
     const coveredNodeIds = new Set<string>();
@@ -170,7 +162,6 @@ export async function POST(request: Request) {
     };
 
     if (shouldLogConnections()) {
-      // Structured JSON log for easy copy/paste and debugging.
       console.log(
         "[AI_CONNECTIONS_JSON]",
         JSON.stringify(

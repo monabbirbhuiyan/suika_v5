@@ -1,8 +1,9 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { decideProblemSpaceClarityProgress } from "@/lib/ai";
+import { decideProblemSpaceClarityProgress, generateClarityGraphConnections } from "@/lib/ai";
 import { getServerSession } from "./get-session";
 
 const isTransientDbTimeout = (error: unknown) => {
@@ -23,6 +24,30 @@ const isTransientDbTimeout = (error: unknown) => {
   }
 
   return false;
+};
+
+const stableInputSignature = (
+  input: Array<{
+    nodeId: string;
+    nodeTitle: string;
+    fragments: Array<{ id: string; type: string; content: string }>;
+  }>,
+) => {
+  const normalized = [...input]
+    .map((node) => ({
+      nodeId: node.nodeId,
+      nodeTitle: node.nodeTitle,
+      fragments: [...node.fragments]
+        .map((fragment) => ({
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content.trim(),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    }))
+    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 };
 
 export const getProblemSpaces = async () => {
@@ -198,12 +223,18 @@ export const getProblemSpaceById = async (id: string) => {
       .filter((node) => node.fragments.length > 0);
 
     try {
-      const progress = await decideProblemSpaceClarityProgress(input);
+      const signature = stableInputSignature(input);
+      const suggestions = await generateClarityGraphConnections(input);
+      const progress = decideProblemSpaceClarityProgress(input, suggestions);
 
       if (progress !== (problemSpace.progress ?? 0)) {
         await prisma.problemSpace.update({
           where: { id: problemSpace.id },
-          data: { progress },
+          data: {
+            progress,
+            aiConnectionsSignature: signature,
+            aiConnectionsCache: suggestions as Prisma.InputJsonValue,
+          },
         });
         problemSpace.progress = progress;
       }
