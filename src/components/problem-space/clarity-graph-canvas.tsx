@@ -112,6 +112,11 @@ const fragmentTypePriority: Record<Fragment["type"], number> = {
   OBSERVATION: 2,
   CONSTRAINS: 3,
   CONCLUSION: 4,
+  LEGAL_ELEMENT: 5,
+  BINDING_AUTHORITY: 6,
+  PERSUASIVE_AUTHORITY: 7,
+  PROCEDURAL_FACT: 8,
+  EVIDENTIARY_FACT: 9,
 };
 
 const typeStyles: Record<
@@ -134,6 +139,31 @@ const typeStyles: Record<
     dot: "bg-[#52bf90]",
     label: "Conclusion",
     color: "#52bf90",
+  },
+  LEGAL_ELEMENT: {
+    dot: "bg-[#6d28d9]",
+    label: "Legal Element",
+    color: "#6d28d9",
+  },
+  BINDING_AUTHORITY: {
+    dot: "bg-[#7c3aed]",
+    label: "Binding Authority",
+    color: "#7c3aed",
+  },
+  PERSUASIVE_AUTHORITY: {
+    dot: "bg-[#a855f7]",
+    label: "Persuasive Authority",
+    color: "#a855f7",
+  },
+  PROCEDURAL_FACT: {
+    dot: "bg-[#0891b2]",
+    label: "Procedural Fact",
+    color: "#0891b2",
+  },
+  EVIDENTIARY_FACT: {
+    dot: "bg-[#0d9488]",
+    label: "Evidentiary Fact",
+    color: "#0d9488",
   },
 };
 
@@ -177,6 +207,31 @@ const fragmentCardAccent: Record<
     border: "border-l-[#52bf90]",
     dot: "bg-[#52bf90]",
     label: "Conclusion",
+  },
+  LEGAL_ELEMENT: {
+    border: "border-l-[#6d28d9]",
+    dot: "bg-[#6d28d9]",
+    label: "Legal Element",
+  },
+  BINDING_AUTHORITY: {
+    border: "border-l-[#7c3aed]",
+    dot: "bg-[#7c3aed]",
+    label: "Binding Authority",
+  },
+  PERSUASIVE_AUTHORITY: {
+    border: "border-l-[#a855f7]",
+    dot: "bg-[#a855f7]",
+    label: "Persuasive Authority",
+  },
+  PROCEDURAL_FACT: {
+    border: "border-l-[#0891b2]",
+    dot: "bg-[#0891b2]",
+    label: "Procedural Fact",
+  },
+  EVIDENTIARY_FACT: {
+    border: "border-l-[#0d9488]",
+    dot: "bg-[#0d9488]",
+    label: "Evidentiary Fact",
   },
 };
 
@@ -1020,6 +1075,23 @@ const ClarityGraphCanvasInner = ({
           OBSERVATION: typeStyles.OBSERVATION.dot,
           CONSTRAINS: typeStyles.CONSTRAINS.dot,
           CONCLUSION: typeStyles.CONCLUSION.dot,
+          LEGAL_ELEMENT: typeStyles.LEGAL_ELEMENT.dot,
+          BINDING_AUTHORITY: typeStyles.BINDING_AUTHORITY.dot,
+          PERSUASIVE_AUTHORITY: typeStyles.PERSUASIVE_AUTHORITY.dot,
+          PROCEDURAL_FACT: typeStyles.PROCEDURAL_FACT.dot,
+          EVIDENTIARY_FACT: typeStyles.EVIDENTIARY_FACT.dot,
+        }}
+        fragmentTypeLabelByType={{
+          QUESTION: typeStyles.QUESTION.label,
+          IDEA: typeStyles.IDEA.label,
+          OBSERVATION: typeStyles.OBSERVATION.label,
+          CONSTRAINS: typeStyles.CONSTRAINS.label,
+          CONCLUSION: typeStyles.CONCLUSION.label,
+          LEGAL_ELEMENT: typeStyles.LEGAL_ELEMENT.label,
+          BINDING_AUTHORITY: typeStyles.BINDING_AUTHORITY.label,
+          PERSUASIVE_AUTHORITY: typeStyles.PERSUASIVE_AUTHORITY.label,
+          PROCEDURAL_FACT: typeStyles.PROCEDURAL_FACT.label,
+          EVIDENTIARY_FACT: typeStyles.EVIDENTIARY_FACT.label,
         }}
       />
 

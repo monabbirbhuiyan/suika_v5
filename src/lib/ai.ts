@@ -34,14 +34,29 @@ export type GroqChatOptions = {
 };
 
 export type WeavingSuggestionStrength = "STRONG" | "MEDIUM" | "GENTLE";
-export type WeavingSuggestionKind = "MISSING_QUESTION" | "EVIDENCE_GAP";
+export type WeavingSuggestionKind =
+  | "MISSING_QUESTION"
+  | "EVIDENCE_GAP"
+  | "MISSING_ELEMENT"
+  | "AUTHORITY_GAP"
+  | "JURISDICTIONAL_DEFECT"
+  | "PROCEDURAL_BAR"
+  | "STANDARD_OF_REVIEW"
+  | "FACTUAL_DISPUTE"
+  | "AFFIRMATIVE_DEFENSE"
+  | "DAMAGES_SPECIFICATION";
 
 type FragmentType =
   | "QUESTION"
   | "IDEA"
   | "OBSERVATION"
   | "CONSTRAINS"
-  | "CONCLUSION";
+  | "CONCLUSION"
+  | "LEGAL_ELEMENT"
+  | "BINDING_AUTHORITY"
+  | "PERSUASIVE_AUTHORITY"
+  | "PROCEDURAL_FACT"
+  | "EVIDENTIARY_FACT";
 
 export type WeavingSuggestionInput = {
   title: string;
@@ -90,6 +105,20 @@ export type ProblemSpaceConclusion = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
   basedOnQuestionCount: number;
   totalQuestionCount: number;
+  controllingAuthority?: Array<{
+    citation: string;
+    jurisdiction: string;
+    weight: "binding" | "persuasive";
+  }>;
+  elementAnalysis?: Array<{
+    element: string;
+    satisfied: boolean;
+    supportingFragments: string[];
+    gaps: string[];
+  }>;
+  proceduralPosture?: string;
+  standardOfReview?: string;
+  missingJurisdictionalFacts?: string[];
 };
 
 const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
@@ -98,6 +127,11 @@ const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
   "OBSERVATION",
   "CONSTRAINS",
   "CONCLUSION",
+  "LEGAL_ELEMENT",
+  "BINDING_AUTHORITY",
+  "PERSUASIVE_AUTHORITY",
+  "PROCEDURAL_FACT",
+  "EVIDENTIARY_FACT",
 ];
 
 type ClarityRelationship = "CONTRADICTS" | "CLARIFIES" | "RESOLVES";
@@ -367,8 +401,23 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
 const generateSuikaWeavingSuggestionsWithNvidia = async (
   inputs: WeavingSuggestionInput[],
 ): Promise<WeavingSuggestion[]> => {
-  const systemInstruction =
-    "You are Suika AI Weaving focused on diagnostics. Return only a JSON array. Use only node titles and fragment ids from input.";
+  const systemInstruction = `You are a litigation partner reviewing associate work product for legal case analysis.
+
+DIAGNOSTIC CATEGORIES (kind):
+- MISSING_ELEMENT: Required legal element has no supporting evidence fragment
+- AUTHORITY_GAP: Legal conclusion lacks binding/controlling authority
+- JURISDICTIONAL_DEFECT: Missing venue, standing, ripeness, or subject-matter jurisdiction facts
+- PROCEDURAL_BAR: Statute of limitations, exhaustion, waiver, or preclusion not addressed
+- STANDARD_OF_REVIEW: Missing articulation of applicable appellate standard
+- FACTUAL_DISPUTE: Material fact genuinely contested requiring trial
+- AFFIRMATIVE_DEFENSE: Potential defense not pleaded or supported
+- DAMAGES_SPECIFICATION: Damage model or causation chain incomplete
+- MISSING_QUESTION: Node has ideas/observations but no explicit guiding question
+- EVIDENCE_GAP: Node has claims but lacks concrete evidence
+
+For each suggestion, recommend the SPECIFIC fragment type to add (QUESTION/OBSERVATION/CONSTRAINS/CONCLUSION/LEGAL_ELEMENT/BINDING_AUTHORITY/PERSUASIVE_AUTHORITY/PROCEDURAL_FACT/EVIDENTIARY_FACT) and cite the governing rule/case in rationale.
+
+Return only a JSON array. Use only node titles and fragment ids from input.`;
 
   const text = await nvidiaChatCompletion({
     messages: [
@@ -409,9 +458,21 @@ const generateSuikaWeavingSuggestionsWithNvidia = async (
         strength?: unknown;
       };
 
+      const validKinds = [
+        "MISSING_QUESTION",
+        "EVIDENCE_GAP",
+        "MISSING_ELEMENT",
+        "AUTHORITY_GAP",
+        "JURISDICTIONAL_DEFECT",
+        "PROCEDURAL_BAR",
+        "STANDARD_OF_REVIEW",
+        "FACTUAL_DISPUTE",
+        "AFFIRMATIVE_DEFENSE",
+        "DAMAGES_SPECIFICATION",
+      ];
+
       if (
-        (record.kind !== "MISSING_QUESTION" &&
-          record.kind !== "EVIDENCE_GAP") ||
+        !validKinds.includes(record.kind as string) ||
         typeof record.nodeTitle !== "string" ||
         typeof record.focusFragmentId !== "string" ||
         typeof record.reason !== "string" ||
@@ -423,7 +484,7 @@ const generateSuikaWeavingSuggestionsWithNvidia = async (
 
       return {
         fromTitle: record.nodeTitle.trim(),
-        toTitle: record.kind,
+        toTitle: record.kind as WeavingSuggestionKind,
         reason: record.reason.trim().slice(0, 180),
         strength: normalizeStrength(String(record.strength ?? "MEDIUM")),
         focusFragmentId: record.focusFragmentId.trim(),
@@ -469,20 +530,24 @@ const analyzeFragmentRelationshipsWithNvidia = async (
     content: string;
   }>,
 ): Promise<RelationshipRecord[]> => {
-  const systemInstruction = `You are the analytical reasoning engine for Suika.
-Analyze provided fragments and map strong logical relationships.
-Relationship definitions:
-- CONTRADICTS: source blocks or invalidates target.
-- CLARIFIES: source provides evidence/context for target.
-- RESOLVES: source answer/decision resolves target uncertainty.
-Rules:
-- No weak links.
-- Never self-link.
-- source_id and target_id must exactly match input IDs.
-- Prefer sparse, high-signal relationships.
-- rationale must be a clear 2-4 sentence explanation in plain English.
-- rationale should explain what in the source supports/challenges/answers the target and why that matters for decision quality.
-Return only JSON array objects with keys: source_id, target_id, relationship, rationale.`;
+  const systemInstruction = `You are a senior legal analyst specializing in case law reasoning and statutory interpretation.
+
+Analyze legal fragments and map STRONG logical relationships using these precise definitions:
+
+RELATIONSHIP TYPES:
+- CONTRADICTS: Source legally precludes target (statutory bar, binding precedent, jurisdictional defect, constitutional violation, procedural bar)
+- CLARIFIES: Source provides controlling authority, statutory text, or factual predicate that illuminates target's legal significance
+- RESOLVES: Source contains a holding, finding, or determination that directly answers target's legal question
+
+LEGAL REASONING RULES:
+- Distinguish binding vs. persuasive authority in rationale
+- Identify jurisdiction, court level, and date for each authority
+- Flag missing elements: standing, ripeness, exhaustion, statutes of limitations
+- Note when fragments represent: elements of a claim, affirmative defenses, standards of review
+- Rationale MUST cite specific legal principle, statute, or case name from source
+- No weak analogical links without explicit doctrinal basis
+
+Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
 
   const text = await nvidiaChatCompletion({
     messages: [
@@ -564,12 +629,31 @@ const generateProblemSpaceConclusionWithNvidia = async (
     messages: [
       {
         role: "system",
-        content:
-          "You are a senior paralegal and legal researcher analyzing a problem space. Pick the most supported conclusion that answers the greatest number of question fragments across nodes. Base conclusions strictly on the provided facts. Explicitly state when jurisdictional or statutory context is missing. Return only valid JSON.",
+        content: `You are an appellate attorney drafting a legal memorandum conclusion.
+
+TASK: Determine the strongest legal conclusion supported by the problem space.
+
+FRAMEWORK:
+1. Identify the controlling legal standard (statute, regulation, precedent)
+2. Map each QUESTION fragment to required legal elements
+3. Evaluate EVIDENCE fragments against each element (sufficiency, admissibility, weight)
+4. Apply CONSTRAINTS (jurisdictional, procedural, statutory)
+5. Test CONCLUSION fragments against governing law
+
+OUTPUT JSON MUST INCLUDE:
+- "controllingAuthority": [{"citation": "...", "jurisdiction": "...", "weight": "binding|persuasive"}]
+- "elementAnalysis": [{"element": "...", "satisfied": boolean, "supportingFragments": [...], "gaps": [...]}]
+- "proceduralPosture": "motion to dismiss | summary judgment | trial | appeal"
+- "standardOfReview": "de novo | abuse of discretion | clear error | substantial evidence"
+- "missingJurisdictionalFacts": [...]
+- confidence based on: binding authority coverage + element satisfaction + procedural posture`,
       },
       {
         role: "user",
-        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit based on logical and legal reasoning.\nReturn JSON with keys: conclusion, why (explain reasoning, identifying applicable statutes or case law principles if apparent), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number).\nData:\n${JSON.stringify(payload, null, 2)}`,
+        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit based on logical and legal reasoning.
+Return JSON with keys: conclusion, why (explain reasoning, identifying applicable statutes or case law principles if apparent), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number), controllingAuthority (array), elementAnalysis (array), proceduralPosture (string), standardOfReview (string), missingJurisdictionalFacts (array).
+Data:
+${JSON.stringify(payload, null, 2)}`,
       },
     ],
     maxTokens: 2048,
@@ -613,6 +697,47 @@ const generateProblemSpaceConclusionWithNvidia = async (
   const suggestions = normalizeBullets(parsed.suggestions, 4);
   const advice = normalizeBullets(parsed.advice, 4);
 
+  const controllingAuthority = Array.isArray(parsed.controllingAuthority)
+    ? parsed.controllingAuthority
+        .map((ca) => {
+          if (!ca || typeof ca !== "object") return null;
+          const citation = typeof ca.citation === "string" ? ca.citation.trim() : "";
+          const jurisdiction = typeof ca.jurisdiction === "string" ? ca.jurisdiction.trim() : "";
+          const weight = ca.weight === "binding" || ca.weight === "persuasive" ? ca.weight : "persuasive";
+          if (!citation || !jurisdiction) return null;
+          return { citation, jurisdiction, weight };
+        })
+        .filter((ca): ca is { citation: string; jurisdiction: string; weight: "binding" | "persuasive" } => Boolean(ca))
+    : [];
+
+  const elementAnalysis = Array.isArray(parsed.elementAnalysis)
+    ? parsed.elementAnalysis
+        .map((ea) => {
+          if (!ea || typeof ea !== "object") return null;
+          const element = typeof ea.element === "string" ? ea.element.trim() : "";
+          const satisfied = typeof ea.satisfied === "boolean" ? ea.satisfied : false;
+          const supportingFragments = Array.isArray(ea.supportingFragments)
+            ? ea.supportingFragments.map((s: unknown) => String(s).trim()).filter(Boolean)
+            : [];
+          const gaps = Array.isArray(ea.gaps)
+            ? ea.gaps.map((g: unknown) => String(g).trim()).filter(Boolean)
+            : [];
+          if (!element) return null;
+          return { element, satisfied, supportingFragments, gaps };
+        })
+        .filter((ea): ea is { element: string; satisfied: boolean; supportingFragments: string[]; gaps: string[] } => Boolean(ea))
+    : [];
+
+  const proceduralPosture =
+    typeof parsed.proceduralPosture === "string" ? parsed.proceduralPosture.trim() : undefined;
+  const standardOfReview =
+    typeof parsed.standardOfReview === "string" ? parsed.standardOfReview.trim() : undefined;
+  const missingJurisdictionalFacts = Array.isArray(parsed.missingJurisdictionalFacts)
+    ? parsed.missingJurisdictionalFacts
+        .map((f) => (typeof f === "string" ? f.trim() : ""))
+        .filter(Boolean)
+    : [];
+
   if (!conclusion || !why || !description) {
     return fallbackProblemSpaceConclusion(input);
   }
@@ -631,6 +756,11 @@ const generateProblemSpaceConclusionWithNvidia = async (
     confidence,
     basedOnQuestionCount,
     totalQuestionCount,
+    controllingAuthority,
+    elementAnalysis,
+    proceduralPosture,
+    standardOfReview,
+    missingJurisdictionalFacts,
   };
 };
 

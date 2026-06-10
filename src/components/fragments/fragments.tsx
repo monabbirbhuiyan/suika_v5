@@ -29,6 +29,11 @@ const typeButtonStyles: Record<(typeof fragmentTypes)[number], string> = {
   OBSERVATION: "border-[#dc8b30] bg-[#dc8b30]/10 text-[#dc8b30]",
   CONSTRAINS: "border-destructive bg-destructive/10 text-destructive",
   CONCLUSION: "border-[#52bf90] bg-[#52bf90]/10 text-[#52bf90]",
+  LEGAL_ELEMENT: "border-[#6d28d9] bg-[#6d28d9]/10 text-[#6d28d9]",
+  BINDING_AUTHORITY: "border-[#7c3aed] bg-[#7c3aed]/10 text-[#7c3aed]",
+  PERSUASIVE_AUTHORITY: "border-[#a855f7] bg-[#a855f7]/10 text-[#a855f7]",
+  PROCEDURAL_FACT: "border-[#0891b2] bg-[#0891b2]/10 text-[#0891b2]",
+  EVIDENTIARY_FACT: "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]",
 };
 
 const typeStyles: Record<
@@ -60,6 +65,31 @@ const typeStyles: Record<
     dot: "bg-[#52bf90]",
     label: "Conclusion",
   },
+  LEGAL_ELEMENT: {
+    border: "border-l-[#6d28d9]",
+    dot: "bg-[#6d28d9]",
+    label: "Legal Element",
+  },
+  BINDING_AUTHORITY: {
+    border: "border-l-[#7c3aed]",
+    dot: "bg-[#7c3aed]",
+    label: "Binding Authority",
+  },
+  PERSUASIVE_AUTHORITY: {
+    border: "border-l-[#a855f7]",
+    dot: "bg-[#a855f7]",
+    label: "Persuasive Authority",
+  },
+  PROCEDURAL_FACT: {
+    border: "border-l-[#0891b2]",
+    dot: "bg-[#0891b2]",
+    label: "Procedural Fact",
+  },
+  EVIDENTIARY_FACT: {
+    border: "border-l-[#0d9488]",
+    dot: "bg-[#0d9488]",
+    label: "Evidentiary Fact",
+  },
 };
 
 const singleInstanceFragmentTypeSet = new Set<string>(
@@ -72,6 +102,11 @@ const fragmentTypePriority: Record<Fragment["type"], number> = {
   OBSERVATION: 2,
   CONSTRAINS: 3,
   CONCLUSION: 4,
+  LEGAL_ELEMENT: 5,
+  BINDING_AUTHORITY: 6,
+  PERSUASIVE_AUTHORITY: 7,
+  PROCEDURAL_FACT: 8,
+  EVIDENTIARY_FACT: 9,
 };
 
 const getFragmentTypeLabels = (nodeFragments: Fragment[]) => {

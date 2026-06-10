@@ -17,6 +17,7 @@ type Props = {
   fragments: Fragment[];
   fragmentTypeLabels: string[];
   dotClassByType: Record<Fragment["type"], string>;
+  fragmentTypeLabelByType?: Record<Fragment["type"], string>;
 };
 
 const NodeDetailsSheet = ({
@@ -26,7 +27,12 @@ const NodeDetailsSheet = ({
   fragments,
   fragmentTypeLabels,
   dotClassByType,
+  fragmentTypeLabelByType,
 }: Props) => {
+  const getTypeLabel = (type: Fragment["type"], fallback: string) => {
+    return fragmentTypeLabelByType?.[type] ?? fallback;
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="sm:max-w-md p-0">
@@ -51,7 +57,7 @@ const NodeDetailsSheet = ({
                     className={`h-2 w-2 rounded-full ${dotClassByType[fragment.type]}`}
                   />
                   <span className="text-[10px] tracking-wider text-muted-foreground">
-                    {fragmentTypeLabels[index]}
+                    {getTypeLabel(fragment.type, fragmentTypeLabels[index])}
                   </span>
                 </div>
                 <p className="text-sm font-medium text-foreground">

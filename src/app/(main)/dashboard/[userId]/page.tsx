@@ -21,7 +21,12 @@ type FragmentType =
   | "IDEA"
   | "OBSERVATION"
   | "CONSTRAINS"
-  | "CONCLUSION";
+  | "CONCLUSION"
+  | "LEGAL_ELEMENT"
+  | "BINDING_AUTHORITY"
+  | "PERSUASIVE_AUTHORITY"
+  | "PROCEDURAL_FACT"
+  | "EVIDENTIARY_FACT";
 
 const fragmentTypeLabels: Record<FragmentType, string> = {
   QUESTION: "Questions",
@@ -29,6 +34,11 @@ const fragmentTypeLabels: Record<FragmentType, string> = {
   OBSERVATION: "Observations",
   CONSTRAINS: "Constraints",
   CONCLUSION: "Conclusions",
+  LEGAL_ELEMENT: "Legal Elements",
+  BINDING_AUTHORITY: "Binding Authorities",
+  PERSUASIVE_AUTHORITY: "Persuasive Authorities",
+  PROCEDURAL_FACT: "Procedural Facts",
+  EVIDENTIARY_FACT: "Evidentiary Facts",
 };
 
 const sortByUpdatedAtDesc = <T extends { updatedAt: Date }>(items: T[]) => {
@@ -87,7 +97,9 @@ const DashboardPage = async () => {
   const fragmentCounts = spaces.reduce(
     (acc, space) => {
       (space.fragments ?? []).forEach((fragment) => {
-        acc[fragment.type] += 1;
+        if (fragment.type in acc) {
+          acc[fragment.type] += 1;
+        }
       });
       return acc;
     },
@@ -97,6 +109,11 @@ const DashboardPage = async () => {
       OBSERVATION: 0,
       CONSTRAINS: 0,
       CONCLUSION: 0,
+      LEGAL_ELEMENT: 0,
+      BINDING_AUTHORITY: 0,
+      PERSUASIVE_AUTHORITY: 0,
+      PROCEDURAL_FACT: 0,
+      EVIDENTIARY_FACT: 0,
     } satisfies Record<FragmentType, number>,
   );
 

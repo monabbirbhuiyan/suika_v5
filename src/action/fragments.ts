@@ -87,7 +87,7 @@ export const createFragment = async (
     title?: string;
     content: string;
     nodeId: string;
-    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION";
+    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION" | "LEGAL_ELEMENT" | "BINDING_AUTHORITY" | "PERSUASIVE_AUTHORITY" | "PROCEDURAL_FACT" | "EVIDENTIARY_FACT";
   },
 ) => {
   const session = await getServerSession();
@@ -342,7 +342,7 @@ export const updateFragment = async (
   fragmentId: string,
   data: {
     content: string;
-    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION";
+    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION" | "LEGAL_ELEMENT" | "BINDING_AUTHORITY" | "PERSUASIVE_AUTHORITY" | "PROCEDURAL_FACT" | "EVIDENTIARY_FACT";
   },
 ) => {
   const session = await getServerSession();

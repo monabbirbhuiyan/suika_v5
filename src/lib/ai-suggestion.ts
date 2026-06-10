@@ -3,9 +3,24 @@ export type SuggestionFragmentType =
   | "IDEA"
   | "OBSERVATION"
   | "CONSTRAINS"
-  | "CONCLUSION";
+  | "CONCLUSION"
+  | "LEGAL_ELEMENT"
+  | "BINDING_AUTHORITY"
+  | "PERSUASIVE_AUTHORITY"
+  | "PROCEDURAL_FACT"
+  | "EVIDENTIARY_FACT";
 
-export type AiSuggestionKind = "MISSING_QUESTION" | "EVIDENCE_GAP";
+export type AiSuggestionKind =
+  | "MISSING_QUESTION"
+  | "EVIDENCE_GAP"
+  | "MISSING_ELEMENT"
+  | "AUTHORITY_GAP"
+  | "JURISDICTIONAL_DEFECT"
+  | "PROCEDURAL_BAR"
+  | "STANDARD_OF_REVIEW"
+  | "FACTUAL_DISPUTE"
+  | "AFFIRMATIVE_DEFENSE"
+  | "DAMAGES_SPECIFICATION";
 
 export type AiSuggestionReasonPayload = {
   kind: AiSuggestionKind;
@@ -42,8 +57,34 @@ export const parseAiSuggestionReason = (
     const recommendation = parsed.recommendation;
     const rationale = parsed.rationale;
 
+    const validKinds: AiSuggestionKind[] = [
+      "MISSING_QUESTION",
+      "EVIDENCE_GAP",
+      "MISSING_ELEMENT",
+      "AUTHORITY_GAP",
+      "JURISDICTIONAL_DEFECT",
+      "PROCEDURAL_BAR",
+      "STANDARD_OF_REVIEW",
+      "FACTUAL_DISPUTE",
+      "AFFIRMATIVE_DEFENSE",
+      "DAMAGES_SPECIFICATION",
+    ];
+
+    const validFragmentTypes: SuggestionFragmentType[] = [
+      "QUESTION",
+      "IDEA",
+      "OBSERVATION",
+      "CONSTRAINS",
+      "CONCLUSION",
+      "LEGAL_ELEMENT",
+      "BINDING_AUTHORITY",
+      "PERSUASIVE_AUTHORITY",
+      "PROCEDURAL_FACT",
+      "EVIDENTIARY_FACT",
+    ];
+
     if (
-      (kind !== "MISSING_QUESTION" && kind !== "EVIDENCE_GAP") ||
+      !validKinds.includes(kind as AiSuggestionKind) ||
       typeof summary !== "string" ||
       !focus ||
       typeof focus.nodeTitle !== "string" ||
@@ -56,18 +97,14 @@ export const parseAiSuggestionReason = (
       return null;
     }
 
-    if (
-      focus.fragmentType !== "QUESTION" &&
-      focus.fragmentType !== "IDEA" &&
-      focus.fragmentType !== "OBSERVATION" &&
-      focus.fragmentType !== "CONSTRAINS" &&
-      focus.fragmentType !== "CONCLUSION"
-    ) {
+    if (!validFragmentTypes.includes(focus.fragmentType as SuggestionFragmentType)) {
       return null;
     }
 
+    const validatedKind = kind as AiSuggestionKind;
+
     return {
-      kind,
+      kind: validatedKind,
       summary,
       focus: {
         nodeTitle: focus.nodeTitle,

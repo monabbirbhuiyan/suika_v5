@@ -50,6 +50,11 @@ const typeButtonStyles: Record<(typeof fragmentTypes)[number], string> = {
   OBSERVATION: "border-[#dc8b30] bg-[#dc8b30]/10 text-[#dc8b30]",
   CONSTRAINS: "border-destructive bg-destructive/10 text-destructive",
   CONCLUSION: "border-[#52bf90] bg-[#52bf90]/10 text-[#52bf90]",
+  LEGAL_ELEMENT: "border-[#6d28d9] bg-[#6d28d9]/10 text-[#6d28d9]",
+  BINDING_AUTHORITY: "border-[#7c3aed] bg-[#7c3aed]/10 text-[#7c3aed]",
+  PERSUASIVE_AUTHORITY: "border-[#a855f7] bg-[#a855f7]/10 text-[#a855f7]",
+  PROCEDURAL_FACT: "border-[#0891b2] bg-[#0891b2]/10 text-[#0891b2]",
+  EVIDENTIARY_FACT: "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]",
 };
 
 const singleInstanceFragmentTypeSet = new Set<string>(
@@ -128,8 +133,21 @@ const CreateFragmentForm = ({
     }
   }, [disabledTypeSet, fragmentForm]);
 
-  const formatTypeLabel = (value: (typeof fragmentTypes)[number]) =>
-    value.charAt(0) + value.slice(1).toLowerCase();
+  const formatTypeLabel = (value: (typeof fragmentTypes)[number]) => {
+    const labels: Record<string, string> = {
+      QUESTION: "Question",
+      IDEA: "Idea",
+      OBSERVATION: "Observation",
+      CONSTRAINS: "Constrains",
+      CONCLUSION: "Conclusion",
+      LEGAL_ELEMENT: "Legal Element",
+      BINDING_AUTHORITY: "Binding Auth.",
+      PERSUASIVE_AUTHORITY: "Persuasive Auth.",
+      PROCEDURAL_FACT: "Procedural Fact",
+      EVIDENTIARY_FACT: "Evidentiary Fact",
+    };
+    return labels[value] ?? value.charAt(0) + value.slice(1).toLowerCase().replace("_", " ");
+  };
 
   const onSubmit = async (data: FragmentFormValues) => {
     setLoading(true);
@@ -227,7 +245,7 @@ const CreateFragmentForm = ({
                           <FormItem>
                             <FormLabel>Type</FormLabel>
                             <FormControl>
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2">
                                 {fragmentTypes.map((type) => {
                                   const isActive = field.value === type;
                                   const isDisabled = disabledTypeSet.has(type);
@@ -236,13 +254,13 @@ const CreateFragmentForm = ({
                                       key={type}
                                       type="button"
                                       variant="outline"
-                                      className={`justify-start border transition-opacity hover:cursor-pointer ${typeButtonStyles[type]} ${
+                                      className={`justify-start border max-w-full transition-opacity hover:cursor-pointer ${typeButtonStyles[type]} ${
                                         isActive
                                           ? "opacity-100"
                                           : isDisabled
                                             ? "opacity-20"
                                             : "opacity-45 hover:opacity-70"
-                                      }`}
+                                      }  px-3 py-2 whitespace-nowrap`}
                                       onClick={() => {
                                         if (!isDisabled) {
                                           field.onChange(type);

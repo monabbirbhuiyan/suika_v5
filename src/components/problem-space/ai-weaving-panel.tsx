@@ -27,9 +27,28 @@ const strengthStyle: Record<AiSuggestion["strength"], string> = {
 const kindLabel: Record<string, string> = {
   MISSING_QUESTION: "Missing Question",
   EVIDENCE_GAP: "Evidence Gap",
+  MISSING_ELEMENT: "Missing Legal Element",
+  AUTHORITY_GAP: "Authority Gap",
+  JURISDICTIONAL_DEFECT: "Jurisdictional Defect",
+  PROCEDURAL_BAR: "Procedural Bar",
+  STANDARD_OF_REVIEW: "Standard of Review",
+  FACTUAL_DISPUTE: "Factual Dispute",
+  AFFIRMATIVE_DEFENSE: "Affirmative Defense",
+  DAMAGES_SPECIFICATION: "Damages Specification",
 };
 
-type SuggestionFilter = "ALL" | "MISSING_QUESTION" | "EVIDENCE_GAP";
+type SuggestionFilter =
+  | "ALL"
+  | "MISSING_QUESTION"
+  | "EVIDENCE_GAP"
+  | "MISSING_ELEMENT"
+  | "AUTHORITY_GAP"
+  | "JURISDICTIONAL_DEFECT"
+  | "PROCEDURAL_BAR"
+  | "STANDARD_OF_REVIEW"
+  | "FACTUAL_DISPUTE"
+  | "AFFIRMATIVE_DEFENSE"
+  | "DAMAGES_SPECIFICATION";
 
 const AiWeavingPanel = ({ problemSpaceId, suggestions }: Props) => {
   const router = useRouter();
@@ -44,9 +63,7 @@ const AiWeavingPanel = ({ problemSpaceId, suggestions }: Props) => {
     const detail = parseAiSuggestionReason(item.reason);
     const kind =
       detail?.kind ??
-      (item.toTitle === "MISSING_QUESTION" || item.toTitle === "EVIDENCE_GAP"
-        ? item.toTitle
-        : "MISSING_QUESTION");
+      (kindLabel[item.toTitle] ? item.toTitle : "MISSING_QUESTION");
 
     return {
       item,
@@ -55,13 +72,10 @@ const AiWeavingPanel = ({ problemSpaceId, suggestions }: Props) => {
     };
   });
 
-  const missingQuestionCount = enrichedActiveSuggestions.filter(
-    (entry) => entry.kind === "MISSING_QUESTION",
-  ).length;
-
-  const evidenceGapCount = enrichedActiveSuggestions.filter(
-    (entry) => entry.kind === "EVIDENCE_GAP",
-  ).length;
+  const kindCounts: Record<string, number> = {};
+  enrichedActiveSuggestions.forEach((entry) => {
+    kindCounts[entry.kind] = (kindCounts[entry.kind] ?? 0) + 1;
+  });
 
   const visibleSuggestions =
     filter === "ALL"
@@ -177,20 +191,16 @@ const AiWeavingPanel = ({ problemSpaceId, suggestions }: Props) => {
         >
           All ({activeSuggestions.length})
         </Button>
-        <Button
-          size="sm"
-          variant={filter === "MISSING_QUESTION" ? "default" : "secondary"}
-          onClick={() => setFilter("MISSING_QUESTION")}
-        >
-          Missing Questions ({missingQuestionCount})
-        </Button>
-        <Button
-          size="sm"
-          variant={filter === "EVIDENCE_GAP" ? "default" : "secondary"}
-          onClick={() => setFilter("EVIDENCE_GAP")}
-        >
-          Evidence Gaps ({evidenceGapCount})
-        </Button>
+        {Object.entries(kindLabel).map(([kind, label]) => (
+          <Button
+            key={kind}
+            size="sm"
+            variant={filter === kind ? "default" : "secondary"}
+            onClick={() => setFilter(kind as SuggestionFilter)}
+          >
+            {label} ({kindCounts[kind] ?? 0})
+          </Button>
+        ))}
       </div>
 
       {visibleSuggestions.length === 0 ? (
