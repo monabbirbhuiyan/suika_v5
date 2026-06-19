@@ -7,12 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 type Prefs = {
-  emailJournalReminder: boolean;
   emailWeeklySummary: boolean;
   emailProblemSpaceActivity: boolean;
   emailProductUpdates: boolean;
   emailSecurityAlerts: boolean;
-  inAppJournalPrompt: boolean;
   inAppAiSuggestions: boolean;
   inAppProblemProgress: boolean;
   inAppMilestones: boolean;
@@ -20,12 +18,10 @@ type Prefs = {
 };
 
 const DEFAULTS: Prefs = {
-  emailJournalReminder: true,
   emailWeeklySummary: true,
   emailProblemSpaceActivity: false,
   emailProductUpdates: true,
   emailSecurityAlerts: true,
-  inAppJournalPrompt: true,
   inAppAiSuggestions: true,
   inAppProblemProgress: true,
   inAppMilestones: true,
@@ -39,11 +35,6 @@ type SectionItem = {
 };
 
 const EMAIL_ITEMS: SectionItem[] = [
-  {
-    key: "emailJournalReminder",
-    label: "Daily journal reminder",
-    description: "Get nudged to write your daily journal entry.",
-  },
   {
     key: "emailWeeklySummary",
     label: "Weekly summary",
@@ -67,11 +58,6 @@ const EMAIL_ITEMS: SectionItem[] = [
 ];
 
 const INAPP_ITEMS: SectionItem[] = [
-  {
-    key: "inAppJournalPrompt",
-    label: "Journal prompt",
-    description: "In-app reminder to write when the daily prompt refreshes.",
-  },
   {
     key: "inAppAiSuggestions",
     label: "AI suggestions",

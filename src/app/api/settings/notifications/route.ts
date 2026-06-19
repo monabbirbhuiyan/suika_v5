@@ -42,12 +42,10 @@ export const PATCH = async (request: Request) => {
   }
 
   const boolFields = [
-    "emailJournalReminder",
     "emailWeeklySummary",
     "emailProblemSpaceActivity",
     "emailProductUpdates",
     "emailSecurityAlerts",
-    "inAppJournalPrompt",
     "inAppAiSuggestions",
     "inAppProblemProgress",
     "inAppMilestones",

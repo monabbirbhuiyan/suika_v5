@@ -42,7 +42,7 @@ const RETENTION_OPTIONS = [
   {
     value: "forever",
     label: "Keep forever",
-    description: "Never auto-delete your journal and problem-space data.",
+    description: "Never auto-delete your problem-space data.",
   },
   {
     value: "365d",

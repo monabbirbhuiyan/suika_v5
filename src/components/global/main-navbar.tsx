@@ -50,13 +50,6 @@ const getPageMeta = (pathname: string) => {
     };
   }
 
-  if (section === "journal") {
-    return {
-      title: "Journal",
-      subtitle: "Pin your thoughts. Questions and breakthroughs.",
-    };
-  }
-
   if (section === "settings") {
     return {
       title: "Settings",

@@ -117,7 +117,7 @@ export const POST = async (request: Request) => {
     );
   }
 
-  const [user, prefs, notifications, journalEntries, problemSpaces] =
+  const [user, prefs, notifications, problemSpaces] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -133,10 +133,6 @@ export const POST = async (request: Request) => {
       }),
       prisma.privacyPreferences.findUnique({ where: { userId } }),
       prisma.notificationPreferences.findUnique({ where: { userId } }),
-      prisma.journalEntry.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      }),
       prisma.problemSpace.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -150,7 +146,6 @@ export const POST = async (request: Request) => {
       privacy: prefs,
       notifications,
     },
-    journalEntries,
     problemSpaces,
   };
 

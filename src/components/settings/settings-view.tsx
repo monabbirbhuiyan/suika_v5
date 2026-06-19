@@ -1,12 +1,11 @@
 "use client";
 
 import { User } from "@/generated/prisma";
-import { Bell, CreditCard, Palette, Shield, User2 } from "lucide-react";
+import { Bell, CreditCard, Shield, User2 } from "lucide-react";
 import React from "react";
 import ProfileTab from "./profile-tab";
 import NotificationsTab from "./notification-tab";
 import PrivacyTab from "./privacy-tab";
-import AppearanceTab from "./appearance-tab";
 import BillingTab from "./billings-tab";
 import { motion } from "framer-motion";
 
@@ -23,12 +22,6 @@ const tabs = [
     label: "Privacy & Data",
     icon: Shield,
     Component: PrivacyTab,
-  },
-  {
-    id: "appearance",
-    label: "Appearance",
-    icon: Palette,
-    Component: AppearanceTab,
   },
   { id: "billing", label: "Billing", icon: CreditCard, Component: BillingTab },
 ];

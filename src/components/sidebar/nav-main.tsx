@@ -16,7 +16,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { IoIosSettings } from "react-icons/io";
 import { HiMiniCubeTransparent } from "react-icons/hi2";
-import { MdAutoStories } from "react-icons/md";
 
 type Props = {
   userId: string | null;
@@ -54,12 +53,6 @@ const Navmain = ({ userId }: Props) => {
     },
 
     {
-      label: "Journal",
-      href: `/journal/${userId}`,
-      icon: MdAutoStories,
-    },
-
-    {
       label: "Settings",
       href: `/settings/${userId}`,
       icon: IoIosSettings,
@@ -86,8 +79,6 @@ const Navmain = ({ userId }: Props) => {
                   isActive={isActive}
                   className={cn(
                     "h-12 text-brand-ink hover:bg-brand-green-100/45 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all",
-                    isActive &&
-                      "bg-brand-green-100/60 border-l-2 border-brand-green font-semibold",
                   )}
                 >
                   <Link
@@ -103,7 +94,7 @@ const Navmain = ({ userId }: Props) => {
                     />
                     <span
                       className={cn(
-                        "group-data-[collapsible=icon]:hidden text-base",
+                        "group-data-[collapsible=icon]:hidden text-base font-medium",
                         isActive && "text-brand-green",
                       )}
                     >

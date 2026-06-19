@@ -22,10 +22,12 @@ export function UserAvatar({
     .map((part) => part[0])
     .join("");
 
+  const imageSrc = image && image.trim() !== "" ? image : undefined;
+
   return (
     <Avatar className={cn(className)} {...props}>
       <AvatarImage
-        src={image ?? undefined}
+        src={imageSrc}
         alt={name}
         className="aspect-square object-cover"
       />

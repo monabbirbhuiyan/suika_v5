@@ -1,6 +1,5 @@
 "use client";
 import { User } from "@/generated/prisma";
-import { authClient } from "@/lib/auth-client";
 import { ProfileFormValues, profileSchema } from "@/lib/schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -17,7 +16,7 @@ import {
 } from "../ui/form";
 import { UserAvatar } from "../global/user-avatar";
 import { Button } from "../ui/button";
-import { LineChartIcon, Mail, Text, User2, X } from "lucide-react";
+import { Mail, Text, User2 } from "lucide-react";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 
@@ -35,7 +34,7 @@ const ProfileTab = ({ user }: Props) => {
     defaultValues: {
       name: user.name,
       email: user.email || "",
-      image: user.image || "",
+      image: user.image ?? "",
       bio: user.bio || "",
     },
   });
@@ -44,23 +43,26 @@ const ProfileTab = ({ user }: Props) => {
     setStatus(null);
     setError(null);
 
-    const updateData: any = {
+    const updateData: Record<string, string | null> = {
       name: data.name,
+      bio: data.bio?.trim() || null,
     };
-
-    if (data.bio) {
-      updateData.bio = data.bio;
-    }
 
     if (data.image && data.image !== user.image) {
       updateData.image = data.image;
     }
 
-    const { error } = await authClient.updateUser(updateData);
+    const response = await fetch("/api/settings/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateData),
+    });
 
-    if (error) {
-      setError(error.message || "Failed to update profile");
-      toast.error(error.message || "Failed to update profile");
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok || result?.error) {
+      setError(result?.error || "Failed to update profile");
+      toast.error(result?.error || "Failed to update profile");
     } else {
       setStatus("Profile updated");
       toast.success("Profile updated successfully");

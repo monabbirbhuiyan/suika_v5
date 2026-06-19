@@ -2,8 +2,6 @@ import Link from "next/link";
 import React from "react";
 import { getProblemSpaces } from "@/action/problem-space";
 import { getServerSession } from "@/action/get-session";
-import JournalCard from "@/components/journal/journal-card";
-import { JournalProvider } from "@/components/journal/journal-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -368,11 +366,6 @@ const DashboardPage = async () => {
       </section>
 
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <div className="xl:col-span-5">
-          <JournalProvider userId={user?.id ?? "anonymous"}>
-            <JournalCard userId={user?.id ?? "anonymous"} compact />
-          </JournalProvider>
-        </div>
 
         <Card className="xl:col-span-4 border-(--brand-green)/15 bg-white/95">
           <CardHeader className="pb-3">
