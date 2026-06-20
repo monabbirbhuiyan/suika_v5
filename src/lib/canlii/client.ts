@@ -385,7 +385,7 @@ export async function syncAll(options: SyncOptions = {}): Promise<SyncProgress> 
             continue;
           }
           docs.push({
-            canliiId: `${db.databaseId}/${caseId}`,
+            canliiId: `${db.databaseId}/${caseId}`.substring(0, 500),
             title: c.title,
             citation: c.citation,
             court: db.databaseId,
@@ -522,6 +522,10 @@ function filterLegislationDatabases(
 
 // ─── Save documents to local DB (batch upsert) ──────────────────────────────
 
+function sanitizeId(id: string): string {
+  return id.replace(/[^\w\-\/]/g, "_").substring(0, 500);
+}
+
 async function saveDocuments(docs: NormalizedDocument[]): Promise<void> {
   if (docs.length === 0) return;
 
@@ -529,26 +533,27 @@ async function saveDocuments(docs: NormalizedDocument[]): Promise<void> {
   for (let i = 0; i < docs.length; i += BATCH_SIZE) {
     const batch = docs.slice(i, i + BATCH_SIZE);
 
-    await prisma.$transaction(
-      batch.map((doc) =>
-        prisma.canLIIDataset.upsert({
-          where: { canliiId: doc.canliiId },
-          create: {
-            canliiId: doc.canliiId,
-            title: doc.title,
-            citation: doc.citation,
-            court: doc.court,
-            jurisdiction: doc.jurisdiction,
-            documentType: doc.documentType,
-            decisionDate: doc.decisionDate ? new Date(doc.decisionDate) : null,
-            url: doc.url,
-            content: doc.content,
-            metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-            lastSyncedAt: new Date(),
-            syncStatus: SyncStatus.COMPLETED,
-          },
+    try {
+      await prisma.$transaction(
+        batch.map((doc) =>
+          prisma.canLIIDataset.upsert({
+            where: { canliiId: sanitizeId(doc.canliiId) },
+            create: {
+              canliiId: sanitizeId(doc.canliiId),
+              title: doc.title.substring(0, 2000),
+              citation: doc.citation,
+              court: doc.court,
+              jurisdiction: doc.jurisdiction,
+              documentType: doc.documentType,
+              decisionDate: doc.decisionDate ? new Date(doc.decisionDate) : null,
+              url: doc.url,
+              content: doc.content,
+              metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+              lastSyncedAt: new Date(),
+              syncStatus: SyncStatus.COMPLETED,
+            },
           update: {
-            title: doc.title,
+            title: doc.title.substring(0, 2000),
             citation: doc.citation,
             court: doc.court,
             jurisdiction: doc.jurisdiction,
@@ -561,7 +566,45 @@ async function saveDocuments(docs: NormalizedDocument[]): Promise<void> {
             syncStatus: SyncStatus.COMPLETED,
           },
         }),
-      ),
-    );
+        ),
+      );
+    } catch {
+      for (const doc of batch) {
+        try {
+          await prisma.canLIIDataset.upsert({
+            where: { canliiId: sanitizeId(doc.canliiId) },
+            create: {
+              canliiId: sanitizeId(doc.canliiId),
+              title: doc.title.substring(0, 2000),
+              citation: doc.citation,
+              court: doc.court,
+              jurisdiction: doc.jurisdiction,
+              documentType: doc.documentType,
+              decisionDate: doc.decisionDate ? new Date(doc.decisionDate) : null,
+              url: doc.url,
+              content: doc.content,
+              metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+              lastSyncedAt: new Date(),
+              syncStatus: SyncStatus.COMPLETED,
+            },
+            update: {
+              title: doc.title.substring(0, 2000),
+              citation: doc.citation,
+              court: doc.court,
+              jurisdiction: doc.jurisdiction,
+              documentType: doc.documentType,
+              decisionDate: doc.decisionDate ? new Date(doc.decisionDate) : null,
+              url: doc.url,
+              content: doc.content,
+              metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+              lastSyncedAt: new Date(),
+              syncStatus: SyncStatus.COMPLETED,
+            },
+          });
+        } catch {
+          // Skip individual document failures silently
+        }
+      }
+    }
   }
 }

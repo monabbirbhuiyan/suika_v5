@@ -99,14 +99,12 @@ export const POST = async (request: Request) => {
 
 export const GET = async () => {
   const session = await getServerSession();
-  const userId = session?.user?.id;
 
-  if (!userId) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const logs = await prisma.canLIISyncLog.findMany({
-    where: { triggeredBy: userId },
     orderBy: { startedAt: "desc" },
     take: 20,
   });

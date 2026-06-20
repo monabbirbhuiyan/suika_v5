@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
+import prisma from "@/lib/prisma";
 
 const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
 
@@ -18,6 +19,112 @@ const NVIDIA_THINKING_MODE =
   (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
 
 const MAX_RELATIONSHIP_EDGES = 8;
+
+// ─── CanLII Dataset Context ──────────────────────────────────────────────────
+
+export type DatasetLaw = {
+  canliiId: string;
+  title: string;
+  citation: string | null;
+  jurisdiction: string | null;
+  documentType: string;
+  url: string | null;
+};
+
+export type DatasetContext = {
+  laws: DatasetLaw[];
+  source: "canlii_dataset";
+};
+
+function extractSearchTerms(fragments: Array<{ content: string }>): string[] {
+  const stopWords = new Set([
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "as", "into", "through", "during", "before", "after", "above", "below",
+    "between", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "both",
+    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
+    "not", "only", "own", "same", "so", "than", "too", "very", "just",
+    "because", "but", "and", "or", "if", "while", "that", "this", "these",
+    "those", "it", "its", "he", "she", "they", "them", "their", "what",
+    "which", "who", "whom", "about", "against", "up", "down",
+  ]);
+
+  const allWords = fragments
+    .flatMap((f) =>
+      f.content
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+    )
+    .filter((w) => w.length >= 3 && !stopWords.has(w));
+
+  const freq = new Map<string, number>();
+  for (const word of allWords) {
+    freq.set(word, (freq.get(word) ?? 0) + 1);
+  }
+
+  return Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([word]) => word);
+}
+
+export async function searchCanLIIDataset(
+  fragments: Array<{ content: string }>,
+  limit = 15,
+): Promise<DatasetContext> {
+  const terms = extractSearchTerms(fragments);
+  if (terms.length === 0) {
+    return { laws: [], source: "canlii_dataset" };
+  }
+
+  const where = {
+    syncStatus: "COMPLETED" as const,
+    OR: terms.flatMap((term) => [
+      { title: { contains: term, mode: "insensitive" as const } },
+      { citation: { contains: term, mode: "insensitive" as const } },
+    ]),
+  };
+
+  const rows = await prisma.canLIIDataset.findMany({
+    where,
+    select: {
+      canliiId: true,
+      title: true,
+      citation: true,
+      jurisdiction: true,
+      documentType: true,
+      url: true,
+    },
+    take: limit,
+    orderBy: { lastSyncedAt: "desc" },
+  });
+
+  return {
+    laws: rows.map((r) => ({
+      canliiId: r.canliiId,
+      title: r.title,
+      citation: r.citation,
+      jurisdiction: r.jurisdiction,
+      documentType: r.documentType,
+      url: r.url,
+    })),
+    source: "canlii_dataset",
+  };
+}
+
+function formatDatasetContext(ctx: DatasetContext): string {
+  if (ctx.laws.length === 0) return "";
+  return ctx.laws
+    .map(
+      (law, i) =>
+        `[${i + 1}] ${law.title} (${law.citation ?? "no citation"}) — ${law.documentType}, jurisdiction: ${law.jurisdiction ?? "unknown"}${law.url ? `\n    URL: ${law.url}` : ""}`,
+    )
+    .join("\n");
+}
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -119,6 +226,13 @@ export type ProblemSpaceConclusion = {
   proceduralPosture?: string;
   standardOfReview?: string;
   missingJurisdictionalFacts?: string[];
+  applicableLaws?: Array<{
+    title: string;
+    citation: string;
+    url: string | null;
+    relevance: string;
+    documentType: string;
+  }>;
 };
 
 const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
@@ -529,7 +643,12 @@ const analyzeFragmentRelationshipsWithNvidia = async (
     type: FragmentType;
     content: string;
   }>,
+  datasetCtx?: DatasetContext,
 ): Promise<RelationshipRecord[]> => {
+  const datasetBlock = datasetCtx && datasetCtx.laws.length > 0
+    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET (use these to cite specific authorities in your rationale):\n${formatDatasetContext(datasetCtx)}\n\nWhen a relationship involves a legal principle, cite the specific law from the dataset above by its number (e.g., "[1]") in the rationale. If no dataset law applies, cite the principle from the fragment content itself.`
+    : "";
+
   const systemInstruction = `You are a senior legal analyst specializing in case law reasoning and statutory interpretation.
 
 Analyze legal fragments and map STRONG logical relationships using these precise definitions:
@@ -545,7 +664,8 @@ LEGAL REASONING RULES:
 - Flag missing elements: standing, ripeness, exhaustion, statutes of limitations
 - Note when fragments represent: elements of a claim, affirmative defenses, standards of review
 - Rationale MUST cite specific legal principle, statute, or case name from source
-- No weak analogical links without explicit doctrinal basis
+- When a Canadian law from the dataset applies, cite it by reference number (e.g., "[1]") in the rationale
+- No weak analogical links without explicit doctrinal basis${datasetBlock}
 
 Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
 
@@ -612,6 +732,7 @@ Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
 
 const generateProblemSpaceConclusionWithNvidia = async (
   input: ClarityConnectionInput[],
+  datasetCtx?: DatasetContext,
 ): Promise<ProblemSpaceConclusion> => {
   const payload = input
     .map((node) => ({
@@ -624,6 +745,10 @@ const generateProblemSpaceConclusionWithNvidia = async (
       })),
     }))
     .filter((node) => node.fragments.length > 0);
+
+  const datasetBlock = datasetCtx && datasetCtx.laws.length > 0
+    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET:\n${formatDatasetContext(datasetCtx)}\n\nYou MUST use these laws when forming your conclusion. In "applicableLaws", list each law from the dataset that is relevant to this problem space, explaining its relevance. Cite laws by number (e.g., "[1]") in your conclusion, why, and description text.`
+    : "";
 
   const text = await nvidiaChatCompletion({
     messages: [
@@ -639,19 +764,22 @@ FRAMEWORK:
 3. Evaluate EVIDENCE fragments against each element (sufficiency, admissibility, weight)
 4. Apply CONSTRAINTS (jurisdictional, procedural, statutory)
 5. Test CONCLUSION fragments against governing law
+6. Cross-reference the Canadian law dataset to find applicable legislation, regulations, and case law${datasetBlock}
 
 OUTPUT JSON MUST INCLUDE:
 - "controllingAuthority": [{"citation": "...", "jurisdiction": "...", "weight": "binding|persuasive"}]
 - "elementAnalysis": [{"element": "...", "satisfied": boolean, "supportingFragments": [...], "gaps": [...]}]
+- "applicableLaws": [{"title": "...", "citation": "...", "url": "...", "relevance": "why this law applies", "documentType": "CASE_LAW|LEGISLATION|REGULATION"}]
 - "proceduralPosture": "motion to dismiss | summary judgment | trial | appeal"
 - "standardOfReview": "de novo | abuse of discretion | clear error | substantial evidence"
 - "missingJurisdictionalFacts": [...]
-- confidence based on: binding authority coverage + element satisfaction + procedural posture`,
+- confidence based on: binding authority coverage + element satisfaction + procedural posture
+- conclusion, why, description MUST reference specific laws from the dataset where applicable (cite by number like "[1]")`,
       },
       {
         role: "user",
         content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit based on logical and legal reasoning.
-Return JSON with keys: conclusion, why (explain reasoning, identifying applicable statutes or case law principles if apparent), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number), controllingAuthority (array), elementAnalysis (array), proceduralPosture (string), standardOfReview (string), missingJurisdictionalFacts (array).
+Return JSON with keys: conclusion, why (explain reasoning, citing applicable Canadian laws by number), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number), controllingAuthority (array), elementAnalysis (array), applicableLaws (array), proceduralPosture (string), standardOfReview (string), missingJurisdictionalFacts (array).
 Data:
 ${JSON.stringify(payload, null, 2)}`,
       },
@@ -738,6 +866,21 @@ ${JSON.stringify(payload, null, 2)}`,
         .filter(Boolean)
     : [];
 
+  const applicableLaws = Array.isArray(parsed.applicableLaws)
+    ? parsed.applicableLaws
+        .map((al) => {
+          if (!al || typeof al !== "object") return null;
+          const title = typeof al.title === "string" ? al.title.trim() : "";
+          const citation = typeof al.citation === "string" ? al.citation.trim() : "";
+          const url = typeof al.url === "string" ? al.url.trim() : null;
+          const relevance = typeof al.relevance === "string" ? al.relevance.trim() : "";
+          const documentType = typeof al.documentType === "string" ? al.documentType.trim() : "LEGISLATION";
+          if (!title) return null;
+          return { title, citation, url, relevance, documentType };
+        })
+        .filter((al): al is { title: string; citation: string; url: string | null; relevance: string; documentType: string } => Boolean(al))
+    : [];
+
   if (!conclusion || !why || !description) {
     return fallbackProblemSpaceConclusion(input);
   }
@@ -761,6 +904,7 @@ ${JSON.stringify(payload, null, 2)}`,
     proceduralPosture,
     standardOfReview,
     missingJurisdictionalFacts,
+    applicableLaws,
   };
 };
 
@@ -1545,7 +1689,8 @@ export const analyzeFragmentRelationships = async (
     return [];
   }
 
-  return analyzeFragmentRelationshipsWithNvidia(fragments);
+  const datasetCtx = await searchCanLIIDataset(fragments);
+  return analyzeFragmentRelationshipsWithNvidia(fragments, datasetCtx);
 };
 
 export const generateClarityGraphConnections = async (
@@ -1790,8 +1935,13 @@ export const generateProblemSpaceConclusion = async (
     return fallbackProblemSpaceConclusion(input);
   }
 
+  const allFragments = input.flatMap((node) =>
+    node.fragments.map((f) => ({ content: f.content })),
+  );
+  const datasetCtx = await searchCanLIIDataset(allFragments);
+
   try {
-    return await generateProblemSpaceConclusionWithNvidia(input);
+    return await generateProblemSpaceConclusionWithNvidia(input, datasetCtx);
   } catch {
     return fallbackProblemSpaceConclusion(input);
   }
