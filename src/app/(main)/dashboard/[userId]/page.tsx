@@ -8,7 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
+  Brain,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   Compass,
+  Layers,
+  Plus,
   Sparkles,
   Target,
   TrendingUp,
@@ -38,6 +45,14 @@ const fragmentTypeLabels: Record<FragmentType, string> = {
   PROCEDURAL_FACT: "Procedural Facts",
   EVIDENTIARY_FACT: "Evidentiary Facts",
 };
+
+const fragmentGroups: { label: string; types: FragmentType[]; color: string }[] = [
+  { label: "Claims", types: ["IDEA", "CONCLUSION"], color: "bg-[#005b96]" },
+  { label: "Evidence", types: ["OBSERVATION", "CONSTRAINS"], color: "bg-[#dc8b30]" },
+  { label: "Questions", types: ["QUESTION"], color: "bg-primary" },
+  { label: "Legal", types: ["LEGAL_ELEMENT", "BINDING_AUTHORITY", "PERSUASIVE_AUTHORITY"], color: "bg-[#6d28d9]" },
+  { label: "Facts", types: ["PROCEDURAL_FACT", "EVIDENTIARY_FACT"], color: "bg-[#0891b2]" },
+];
 
 const sortByUpdatedAtDesc = <T extends { updatedAt: Date }>(items: T[]) => {
   return [...items].sort(
@@ -76,9 +91,9 @@ const DashboardPage = async () => {
   const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
   const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
 
-  const activeThisWeek = spaces.filter((space) => {
-    return now - new Date(space.updatedAt).getTime() <= oneWeekMs;
-  }).length;
+  const activeThisWeek = spaces.filter(
+    (space) => now - new Date(space.updatedAt).getTime() <= oneWeekMs,
+  ).length;
 
   const stalledSpaces = spaces.filter((space) => {
     const stale = now - new Date(space.updatedAt).getTime() > twoWeeksMs;
@@ -117,7 +132,7 @@ const DashboardPage = async () => {
 
   const topSpaces = [...spaces]
     .sort((a, b) => (b.progress ?? 0) - (a.progress ?? 0))
-    .slice(0, 8);
+    .slice(0, 6);
 
   const recentSpaces = sortedSpaces.slice(0, 5);
 
@@ -145,6 +160,7 @@ const DashboardPage = async () => {
 
   return (
     <div className="mx-auto w-full max-w-350 space-y-4 px-4 py-4 md:px-5 md:py-5 text-brand-ink">
+      {/* Hero Banner */}
       <Card className="overflow-hidden border-(--brand-green)/20 bg-linear-to-r from-white via-brand-surface to-brand-green-100/45">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5 md:p-6">
           <div className="space-y-2">
@@ -160,8 +176,8 @@ const DashboardPage = async () => {
                 : "Dashboard"}
             </h1>
             <p className="max-w-2xl text-sm text-[#56746a]">
-              A compact view of momentum, bottlenecks, and decision quality
-              across your problem spaces.
+              Track momentum, spot bottlenecks, and measure decision quality
+              across all your problem spaces.
             </p>
           </div>
 
@@ -170,14 +186,14 @@ const DashboardPage = async () => {
               variant="outline"
               className="rounded-full px-3 py-1 text-xs border-(--brand-green)/30 bg-white text-brand-green"
             >
-              {engagementRate}% weekly engagement
+              {engagementRate}% active this week
             </Badge>
             <Button
               asChild
               className="rounded-full bg-brand-green hover:bg-brand-green-700 text-white"
             >
               <Link href={`/problem-spaces/${user?.id}`}>
-                Open Problem Spaces
+                Problem Spaces
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -185,36 +201,53 @@ const DashboardPage = async () => {
         </CardContent>
       </Card>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
-        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
+      {/* Quick Stats */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card className="border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Problem Spaces
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Problem Spaces
+              </p>
+              <Layers className="h-3.5 w-3.5 text-muted-foreground/50" />
+            </div>
             <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {totalProblemSpaces}
             </p>
-            <p className="text-xs text-muted-foreground">Total active spaces</p>
+            <p className="text-xs text-muted-foreground">
+              {activeThisWeek} active this week
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
+        <Card className="border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Average Clarity
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Average Clarity
+              </p>
+              <Target className="h-3.5 w-3.5 text-muted-foreground/50" />
+            </div>
             <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {averageClarity}%
             </p>
-            <p className="text-xs text-muted-foreground">Across all spaces</p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-(--brand-green)/10">
+              <div
+                className="h-full rounded-full bg-brand-green transition-all"
+                style={{ width: `${averageClarity}%` }}
+              />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
+        <Card className="border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Total Fragments
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Fragments
+              </p>
+              <Brain className="h-3.5 w-3.5 text-muted-foreground/50" />
+            </div>
             <p className="mt-2 text-3xl font-semibold text-brand-ink">
               {totalFragments}
             </p>
@@ -224,245 +257,295 @@ const DashboardPage = async () => {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
+        <Card className="border-(--brand-green)/15 bg-white/95">
           <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Active This Week
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-brand-ink">
-              {activeThisWeek}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Health
+              </p>
+              <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <p className="text-3xl font-semibold text-emerald-600">
+                {thrivingSpaces.length}
+              </p>
+              <span className="text-sm text-muted-foreground">
+                / {buildingSpaces.length} / {earlySpaces.length}
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Updated in last 7 days
+              Thriving / Building / Early
             </p>
           </CardContent>
         </Card>
       </section>
 
+      {/* Main Content Grid */}
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-12">
+        {/* Clarity Leaderboard */}
         <Card className="xl:col-span-5 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
               <TrendingUp className="h-4 w-4 text-brand-green" />
               Clarity Leaderboard
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="px-4 pb-4 space-y-2.5">
             {spaces.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No problem spaces yet. Create one to start your clarity trend.
-              </p>
+              <div className="py-6 text-center">
+                <Layers className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  No problem spaces yet.
+                </p>
+                <Button asChild variant="link" className="mt-1 text-brand-green">
+                  <Link href={`/problem-spaces/${user?.id}`}>
+                    Create your first space
+                  </Link>
+                </Button>
+              </div>
             ) : (
-              topSpaces.map((space) => (
-                <div key={space.id} className="space-y-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <Link
-                      href={`/problem-spaces/${user?.id}/${space.id}`}
-                      className="truncate text-sm font-medium text-brand-ink hover:text-brand-green hover:underline"
-                    >
-                      {space.title}
-                    </Link>
-                    <Badge
-                      variant="secondary"
-                      className="rounded-full text-[10px]"
-                    >
-                      {space.progress}%
-                    </Badge>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
-                    <div
-                      className="h-full rounded-full bg-brand-green"
-                      style={{
-                        width: `${Math.max(0, Math.min(100, space.progress ?? 0))}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="xl:col-span-3 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Target className="h-4 w-4 text-brand-green" />
-              Health Bands
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/40 p-3 dark:bg-emerald-900/10">
-              <p className="text-xs text-muted-foreground">
-                Thriving (70-100%)
-              </p>
-              <p className="text-2xl font-semibold text-foreground">
-                {thrivingSpaces.length}
-              </p>
-            </div>
-            <div className="rounded-lg border border-amber-300/50 bg-amber-50/40 p-3 dark:bg-amber-900/10">
-              <p className="text-xs text-muted-foreground">Building (40-69%)</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {buildingSpaces.length}
-              </p>
-            </div>
-            <div className="rounded-lg border border-rose-300/50 bg-rose-50/40 p-3 dark:bg-rose-900/10">
-              <p className="text-xs text-muted-foreground">Early (&lt; 40%)</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {earlySpaces.length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="xl:col-span-4 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Compass className="h-4 w-4 text-brand-green" />
-              Decision Quality Signals
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Evidence vs Claim Coverage
-                </span>
-                <span className="font-medium text-foreground">
-                  {evidenceCoverage}%
-                </span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
-                <div
-                  className="h-full rounded-full bg-brand-green"
-                  style={{ width: `${evidenceCoverage}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Question -&gt; Conclusion Coverage
-                </span>
-                <span className="font-medium text-foreground">
-                  {questionToConclusionCoverage}%
-                </span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
-                <div
-                  className="h-full rounded-full bg-brand-green-700"
-                  style={{ width: `${questionToConclusionCoverage}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3 text-xs text-[#5a766c]">
-              Claims: {claimFragments} · Evidence: {evidenceFragments} ·
-              Questions: {fragmentCounts.QUESTION} · Conclusions:{" "}
-              {fragmentCounts.CONCLUSION}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-
-        <Card className="xl:col-span-4 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-3">
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentSpaces.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No activity yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {recentSpaces.map((space) => (
-                  <div
-                    key={space.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-(--brand-green)/15 bg-white px-3 py-2"
-                  >
-                    <div className="min-w-0">
+              topSpaces.map((space) => {
+                const pct = Math.max(0, Math.min(100, space.progress ?? 0));
+                const barColor =
+                  pct >= 70
+                    ? "bg-emerald-500"
+                    : pct >= 40
+                      ? "bg-amber-500"
+                      : "bg-rose-400";
+                return (
+                  <div key={space.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
                       <Link
                         href={`/problem-spaces/${user?.id}/${space.id}`}
-                        className="block truncate text-sm font-medium text-brand-ink hover:text-brand-green hover:underline"
+                        className="truncate text-sm font-medium text-brand-ink hover:text-brand-green hover:underline"
                       >
                         {space.title}
                       </Link>
-                      <p className="text-xs text-muted-foreground">
-                        Updated {new Date(space.updatedAt).toLocaleDateString()}
-                      </p>
+                      <span className="text-xs font-medium text-muted-foreground tabular-nums shrink-0">
+                        {pct}%
+                      </span>
                     </div>
-                    <Badge variant="secondary" className="rounded-full">
-                      {space.progress}% clarity
-                    </Badge>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-(--brand-green)/10">
+                      <div
+                        className={`h-full rounded-full ${barColor} transition-all`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })
             )}
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-3 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-brand-red" />
-              Needs Attention
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {stalledSpaces.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No stalled spaces right now. Your momentum looks healthy.
-              </p>
-            ) : (
-              stalledSpaces.slice(0, 5).map((space) => (
-                <div
-                  key={space.id}
-                  className="rounded-lg border border-(--brand-red)/20 bg-brand-red-100/35 px-3 py-2"
-                >
-                  <Link
-                    href={`/problem-spaces/${user?.id}/${space.id}`}
-                    className="block truncate text-sm font-medium text-brand-ink hover:text-brand-red hover:underline"
-                  >
-                    {space.title}
-                  </Link>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {space.progress}% clarity · last update{" "}
-                    {new Date(space.updatedAt).toLocaleDateString()}
+        {/* Right Column: Health + Attention */}
+        <div className="xl:col-span-7 space-y-3">
+          {/* Health Bands */}
+          <Card className="border-(--brand-green)/15 bg-white/95">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Target className="h-4 w-4 text-brand-green" />
+                Health Bands
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-center">
+                  <p className="text-2xl font-semibold text-emerald-700">
+                    {thrivingSpaces.length}
                   </p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600/80">
+                    Thriving
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">70–100%</p>
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-center">
+                  <p className="text-2xl font-semibold text-amber-700">
+                    {buildingSpaces.length}
+                  </p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-amber-600/80">
+                    Building
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">40–69%</p>
+                </div>
+                <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3 text-center">
+                  <p className="text-2xl font-semibold text-rose-600">
+                    {earlySpaces.length}
+                  </p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-rose-500/80">
+                    Early
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">&lt; 40%</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity + Needs Attention side by side */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Card className="border-(--brand-green)/15 bg-white/95">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4 text-brand-green" />
+                  Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {recentSpaces.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No activity yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {recentSpaces.map((space) => (
+                      <Link
+                        key={space.id}
+                        href={`/problem-spaces/${user?.id}/${space.id}`}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-(--brand-green)/10 bg-brand-surface/30 px-3 py-2 hover:bg-brand-surface/60 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-brand-ink">
+                            {space.title}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {new Date(space.updatedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {space.progress}%
+                          </span>
+                          <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-(--brand-green)/15 bg-white/95">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <AlertTriangle className="h-4 w-4 text-brand-red" />
+                  Needs Attention
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {stalledSpaces.length === 0 ? (
+                  <div className="py-4 text-center">
+                    <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1.5" />
+                    <p className="text-sm text-muted-foreground">
+                      All clear. No stalled spaces.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {stalledSpaces.slice(0, 4).map((space) => (
+                      <Link
+                        key={space.id}
+                        href={`/problem-spaces/${user?.id}/${space.id}`}
+                        className="block rounded-lg border border-(--brand-red)/15 bg-brand-red-100/25 px-3 py-2 hover:bg-brand-red-100/40 transition-colors"
+                      >
+                        <p className="truncate text-sm font-medium text-brand-ink">
+                          {space.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {space.progress}% · updated{" "}
+                          {new Date(space.updatedAt).toLocaleDateString()}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </section>
 
+      {/* Bottom Row: Decision Quality + Fragment Mix */}
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <Card className="border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Fragment Mix</CardTitle>
+        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <Compass className="h-4 w-4 text-brand-green" />
+              Decision Quality
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {(Object.keys(fragmentCounts) as FragmentType[]).map((type) => {
-              const count = fragmentCounts[type];
+          <CardContent className="px-4 pb-4 space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-muted-foreground">
+                    Evidence vs Claim Coverage
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {evidenceCoverage}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
+                  <div
+                    className="h-full rounded-full bg-brand-green transition-all"
+                    style={{ width: `${evidenceCoverage}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {evidenceFragments} evidence / {claimFragments} claims
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-muted-foreground">
+                    Question → Conclusion
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {questionToConclusionCoverage}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-(--brand-green)/10">
+                  <div
+                    className="h-full rounded-full bg-brand-green-700 transition-all"
+                    style={{ width: `${questionToConclusionCoverage}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {fragmentCounts.CONCLUSION} conclusions / {fragmentCounts.QUESTION} questions
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-(--brand-green)/15 bg-white/95">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <BookOpen className="h-4 w-4 text-brand-green" />
+              Fragment Mix
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2.5">
+            {fragmentGroups.map((group) => {
+              const count = group.types.reduce(
+                (sum, t) => sum + fragmentCounts[t],
+                0,
+              );
               const pct =
                 totalFragments === 0
                   ? 0
                   : Math.round((count / totalFragments) * 100);
-
               return (
-                <div key={type} className="space-y-1">
+                <div key={group.label} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-foreground">
-                      {fragmentTypeLabels[type]}
-                    </span>
+                    <span className="text-foreground">{group.label}</span>
                     <span className="text-muted-foreground">
                       {count} ({pct}%)
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-(--brand-green)/10">
                     <div
-                      className="h-full rounded-full bg-brand-green"
+                      className={`h-full rounded-full ${group.color} transition-all`}
                       style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
                     />
                   </div>
@@ -471,46 +554,15 @@ const DashboardPage = async () => {
             })}
           </CardContent>
         </Card>
-
-        <Card className="xl:col-span-2 border-(--brand-green)/15 bg-white/95">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Focus Suggestions</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-3 text-sm text-muted-foreground md:grid-cols-3">
-            {totalProblemSpaces === 0 ? (
-              <p className="md:col-span-3">
-                Create a problem space and add a few question fragments to
-                receive personalized focus insights.
-              </p>
-            ) : (
-              <>
-                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
-                  {stalledSpaces.length > 0
-                    ? `${stalledSpaces.length} problem space(s) appear stalled (low clarity and no updates in 14+ days). Revisit them or archive them.`
-                    : "Great momentum. No stalled spaces detected in the last 14 days."}
-                </p>
-                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
-                  {fragmentCounts.QUESTION === 0
-                    ? "You currently have no question fragments. Add explicit questions to sharpen AI recommendations and conclusions."
-                    : `You have ${fragmentCounts.QUESTION} question fragment(s). Keep pairing questions with observations and constraints for better clarity.`}
-                </p>
-                <p className="rounded-lg border border-(--brand-green)/15 bg-brand-green-100/30 p-3">
-                  {averageClarity < 40
-                    ? "Average clarity is still early-stage. Focus on one high-priority space and push it past 60% this week."
-                    : "Average clarity is healthy. Continue refining your top spaces with concrete evidence and decision fragments."}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
       </section>
 
+      {/* Continue Working / Empty State */}
       {lastUpdatedSpace ? (
         <Card className="border-dashed border-(--brand-green)/25 bg-white/90">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Most Recent Update
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Continue where you left off
               </p>
               <p className="text-sm font-medium text-brand-ink">
                 {lastUpdatedSpace.title}
@@ -525,13 +577,35 @@ const DashboardPage = async () => {
               className="rounded-full border-(--brand-green)/25 text-brand-green hover:bg-brand-green-100/45"
             >
               <Link href={`/problem-spaces/${user?.id}/${lastUpdatedSpace.id}`}>
-                Continue Working
+                Continue
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card className="border-dashed border-(--brand-green)/25 bg-white/90">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Get started
+              </p>
+              <p className="text-sm font-medium text-brand-ink">
+                Create your first problem space to begin tracking clarity.
+              </p>
+            </div>
+            <Button
+              asChild
+              className="rounded-full bg-brand-green hover:bg-brand-green-700 text-white"
+            >
+              <Link href={`/problem-spaces/${user?.id}`}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                New Space
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

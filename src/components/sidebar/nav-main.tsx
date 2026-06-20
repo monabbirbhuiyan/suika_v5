@@ -16,6 +16,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { IoIosSettings } from "react-icons/io";
 import { HiMiniCubeTransparent } from "react-icons/hi2";
+import { TbDatabase } from "react-icons/tb";
 
 type Props = {
   userId: string | null;
@@ -50,6 +51,12 @@ const Navmain = ({ userId }: Props) => {
       label: "Problem Spaces",
       href: `/problem-spaces/${userId}`,
       icon: HiMiniCubeTransparent,
+    },
+
+    {
+      label: "Datasets",
+      href: `/datasets/${userId}`,
+      icon: TbDatabase,
     },
 
     {

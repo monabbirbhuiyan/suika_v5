@@ -302,3 +302,64 @@ model AiSuggestion {
   @@index([problemSpaceId])
   @@map("ai_suggestions")
 }
+
+// ─── CanLII Datasets ───────────────────────────────────────────────────────────
+
+enum CanLIIDocumentType {
+  CASE_LAW
+  LEGISLATION
+  REGULATION
+  TRIBUNAL_DECISION
+  SECONDARY_SOURCE
+}
+
+enum SyncStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model CanLIIDataset {
+  id                String            @id @default(cuid())
+  canliiId          String            @unique
+  title             String
+  citation          String?
+  court             String?
+  jurisdiction      String?
+  documentType      CanLIIDocumentType
+  decisionDate      DateTime?
+  url               String?
+  content           String?
+  metadata          Json?
+  contentHash       String?
+  indexedAt         DateTime          @default(now())
+  lastSyncedAt      DateTime?
+  syncStatus        SyncStatus        @default(PENDING)
+  syncError         String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([jurisdiction])
+  @@index([court])
+  @@index([documentType])
+  @@index([decisionDate])
+  @@index([syncStatus])
+  @@map("canlii_datasets")
+}
+
+model CanLIISyncLog {
+  id            String      @id @default(cuid())
+  status        SyncStatus  @default(PENDING)
+  startedAt     DateTime    @default(now())
+  completedAt   DateTime?
+  totalFetched  Int         @default(0)
+  totalSaved    Int         @default(0)
+  totalFailed   Int         @default(0)
+  errorMessage  String?
+  triggeredBy   String?     // userId or "system"
+  
+  @@index([status])
+  @@index([startedAt])
+  @@map("canlii_sync_logs")
+}
