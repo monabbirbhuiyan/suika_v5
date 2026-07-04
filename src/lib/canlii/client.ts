@@ -308,6 +308,9 @@ export type SyncOptions = {
   onProgress?: (progress: SyncProgress) => void;
 };
 
+const DATASET_STALENESS_DAYS = 7;
+const RECENT_SYNC_DAYS = 30;
+
 const JURISDICTION_MAP: Record<string, string> = {
   ca: "Canada",
   ab: "Alberta",
@@ -465,6 +468,36 @@ export async function syncAll(options: SyncOptions = {}): Promise<SyncProgress> 
   }
 
   return progress;
+}
+
+export async function isDatasetStale(): Promise<boolean> {
+  const lastSync = await prisma.canLIISyncLog.findFirst({
+    where: { status: SyncStatus.COMPLETED },
+    orderBy: { completedAt: "desc" },
+    select: { completedAt: true },
+  });
+
+  if (!lastSync?.completedAt) return true;
+
+  const stalenessMs = DATASET_STALENESS_DAYS * 24 * 60 * 60 * 1000;
+  return Date.now() - lastSync.completedAt.getTime() > stalenessMs;
+}
+
+export async function syncRecent(
+  options: Pick<SyncOptions, "jurisdictions" | "databaseIds" | "onProgress"> = {},
+): Promise<SyncProgress> {
+  const dateFrom = new Date(
+    Date.now() - RECENT_SYNC_DAYS * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .split("T")[0];
+
+  return syncAll({
+    ...options,
+    dateFrom,
+    maxCasesPerDb: 200,
+    maxLegislationPerDb: 200,
+  });
 }
 
 function matchesJurisdiction(

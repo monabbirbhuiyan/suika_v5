@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import prisma from "@/lib/prisma";
+import { isDatasetStale, syncRecent } from "@/lib/canlii/client";
 
 const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
 
@@ -29,6 +30,7 @@ export type DatasetLaw = {
   jurisdiction: string | null;
   documentType: string;
   url: string | null;
+  decisionDate: Date | null;
 };
 
 export type DatasetContext = {
@@ -98,9 +100,10 @@ export async function searchCanLIIDataset(
       jurisdiction: true,
       documentType: true,
       url: true,
+      decisionDate: true,
     },
     take: limit,
-    orderBy: { lastSyncedAt: "desc" },
+    orderBy: [{ decisionDate: "desc" }, { lastSyncedAt: "desc" }],
   });
 
   return {
@@ -111,6 +114,7 @@ export async function searchCanLIIDataset(
       jurisdiction: r.jurisdiction,
       documentType: r.documentType,
       url: r.url,
+      decisionDate: r.decisionDate,
     })),
     source: "canlii_dataset",
   };
@@ -120,10 +124,36 @@ function formatDatasetContext(ctx: DatasetContext): string {
   if (ctx.laws.length === 0) return "";
   return ctx.laws
     .map(
-      (law, i) =>
-        `[${i + 1}] ${law.title} (${law.citation ?? "no citation"}) — ${law.documentType}, jurisdiction: ${law.jurisdiction ?? "unknown"}${law.url ? `\n    URL: ${law.url}` : ""}`,
+      (law, i) => {
+        const dateStr = law.decisionDate
+          ? ` — decided ${law.decisionDate.toISOString().split("T")[0]}`
+          : "";
+        return `[${i + 1}] ${law.title} (${law.citation ?? "no citation"}) — ${law.documentType}, jurisdiction: ${law.jurisdiction ?? "unknown"}${dateStr}${law.url ? `\n    URL: ${law.url}` : ""}`;
+      },
     )
     .join("\n");
+}
+
+let lastFreshnessCheck = 0;
+let lastFreshnessResult = false;
+
+async function ensureDatasetFresh(): Promise<void> {
+  const now = Date.now();
+  if (now - lastFreshnessCheck < 60_000) {
+    if (!lastFreshnessResult) return;
+  }
+
+  try {
+    const stale = await isDatasetStale();
+    lastFreshnessCheck = now;
+    lastFreshnessResult = stale;
+
+    if (stale) {
+      await syncRecent({ jurisdictions: ["on", "ca"] });
+    }
+  } catch {
+    // Non-blocking: if freshness check fails, proceed with existing data
+  }
 }
 
 export type ChatRole = "system" | "user" | "assistant";
@@ -203,12 +233,46 @@ export type ClarityConnectionSuggestion = {
   strength: WeavingSuggestionStrength;
 };
 
+export type DefendingSide = "PLAINTIFF" | "DEFENDANT";
+
+export type ArgumentEntry = {
+  argument: string;
+  strength: "STRONG" | "MEDIUM" | "WEAK";
+  supportingAuthority?: string;
+  keyEvidence?: string;
+};
+
+export type OpponentArgumentEntry = {
+  argument: string;
+  strength: "STRONG" | "MEDIUM" | "WEAK";
+  counterRebuttal: string;
+  rebuttalAuthority?: string;
+};
+
+export type BestOutcome = {
+  outcome: string;
+  likelihood: "HIGH" | "MEDIUM" | "LOW";
+  reasoning: string;
+  requiredElements: string[];
+  supportingLaws: Array<{
+    title: string;
+    citation: string;
+    url: string | null;
+    relevance: string;
+    documentType: string;
+  }>;
+  keyFactors: string[];
+  risks: string[];
+  nextSteps: string[];
+};
+
 export type ProblemSpaceConclusion = {
-  conclusion: string;
-  why: string;
-  description: string;
-  suggestions: string[];
-  advice: string[];
+  summary: string;
+  defendingSide?: DefendingSide;
+  ourArguments?: ArgumentEntry[];
+  opponentArguments?: OpponentArgumentEntry[];
+  rebuttalStrategy?: string[];
+  bestOutcomes: BestOutcome[];
   confidence: "HIGH" | "MEDIUM" | "LOW";
   basedOnQuestionCount: number;
   totalQuestionCount: number;
@@ -225,14 +289,6 @@ export type ProblemSpaceConclusion = {
   }>;
   proceduralPosture?: string;
   standardOfReview?: string;
-  missingJurisdictionalFacts?: string[];
-  applicableLaws?: Array<{
-    title: string;
-    citation: string;
-    url: string | null;
-    relevance: string;
-    documentType: string;
-  }>;
 };
 
 const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
@@ -733,6 +789,7 @@ Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
 const generateProblemSpaceConclusionWithNvidia = async (
   input: ClarityConnectionInput[],
   datasetCtx?: DatasetContext,
+  defendingSide?: DefendingSide,
 ): Promise<ProblemSpaceConclusion> => {
   const payload = input
     .map((node) => ({
@@ -747,44 +804,93 @@ const generateProblemSpaceConclusionWithNvidia = async (
     .filter((node) => node.fragments.length > 0);
 
   const datasetBlock = datasetCtx && datasetCtx.laws.length > 0
-    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET:\n${formatDatasetContext(datasetCtx)}\n\nYou MUST use these laws when forming your conclusion. In "applicableLaws", list each law from the dataset that is relevant to this problem space, explaining its relevance. Cite laws by number (e.g., "[1]") in your conclusion, why, and description text.`
+    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET:\n${formatDatasetContext(datasetCtx)}\n\nYou MUST use these laws to support outcomes, arguments, and rebuttals. Cite laws by number (e.g., "[1]") throughout.`
     : "";
+
+  const sideLabel = defendingSide === "DEFENDANT"
+    ? "DEFENDANT (you are defending the accused/respondent)"
+    : defendingSide === "PLAINTIFF"
+      ? "PLAINTIFF/PROSECUTOR (you are bringing the claim/complaint)"
+      : null;
+
+  const argumentBlock = sideLabel
+    ? `
+ARGUMENT STRATEGY (from the perspective of the ${sideLabel}):
+
+1. "ourArguments" (array): Your strongest arguments.
+   Each: { argument: string, strength: "STRONG"|"MEDIUM"|"WEAK", supportingAuthority?: string, keyEvidence?: string }
+
+2. "opponentArguments" (array): The opposing side's best arguments against you.
+   Each: { argument: string, strength: "STRONG"|"MEDIUM"|"WEAK", counterRebuttal: string, rebuttalAuthority?: string }
+
+3. "rebuttalStrategy" (array): General strategic advice for countering the opponent.
+
+RULES:
+- Each argument MUST be grounded in the fragments or applicable law
+- Opponent arguments must be the BEST case against you, not straw men
+- Rebuttals must be specific and cite controlling authority
+- "defendingSide" must be returned as "${defendingSide}"` : "";
 
   const text = await nvidiaChatCompletion({
     messages: [
       {
         role: "system",
-        content: `You are an appellate attorney drafting a legal memorandum conclusion.
+        content: `You are a senior legal strategist analyzing a legal problem space.
 
-TASK: Determine the strongest legal conclusion supported by the problem space.
+TASK: Determine the best possible outcomes AND build an argument strategy for the ${sideLabel ?? "relevant party"}.
 
 FRAMEWORK:
 1. Identify the controlling legal standard (statute, regulation, precedent)
 2. Map each QUESTION fragment to required legal elements
-3. Evaluate EVIDENCE fragments against each element (sufficiency, admissibility, weight)
+3. Evaluate EVIDENCE fragments against each element
 4. Apply CONSTRAINTS (jurisdictional, procedural, statutory)
-5. Test CONCLUSION fragments against governing law
-6. Cross-reference the Canadian law dataset to find applicable legislation, regulations, and case law${datasetBlock}
+5. Cross-reference the Canadian law dataset to find applicable legislation, regulations, and case law
+6. Determine which outcomes are most favorable AND achievable
+7. Build argument strategy from the ${sideLabel ?? "relevant party"} perspective
+8. Anticipate and counter the opposing side's strongest arguments${datasetBlock}
+${argumentBlock}
 
-OUTPUT JSON MUST INCLUDE:
-- "controllingAuthority": [{"citation": "...", "jurisdiction": "...", "weight": "binding|persuasive"}]
-- "elementAnalysis": [{"element": "...", "satisfied": boolean, "supportingFragments": [...], "gaps": [...]}]
-- "applicableLaws": [{"title": "...", "citation": "...", "url": "...", "relevance": "why this law applies", "documentType": "CASE_LAW|LEGISLATION|REGULATION"}]
-- "proceduralPosture": "motion to dismiss | summary judgment | trial | appeal"
-- "standardOfReview": "de novo | abuse of discretion | clear error | substantial evidence"
-- "missingJurisdictionalFacts": [...]
-- confidence based on: binding authority coverage + element satisfaction + procedural posture
-- conclusion, why, description MUST reference specific laws from the dataset where applicable (cite by number like "[1]")`,
+OUTPUT JSON:
+{
+  "summary": "Brief overview of the case posture and legal landscape",
+  "defendingSide": "${defendingSide ?? ""}",
+  "ourArguments": [{ "argument": "...", "strength": "STRONG|MEDIUM|WEAK", "supportingAuthority": "...", "keyEvidence": "..." }],
+  "opponentArguments": [{ "argument": "...", "strength": "STRONG|MEDIUM|WEAK", "counterRebuttal": "...", "rebuttalAuthority": "..." }],
+  "rebuttalStrategy": ["..."],
+  "bestOutcomes": [
+    {
+      "outcome": "Description of best possible result",
+      "likelihood": "HIGH | MEDIUM | LOW",
+      "reasoning": "Legal reasoning citing specific laws by number",
+      "requiredElements": ["..."],
+      "supportingLaws": [{ "title": "...", "citation": "...", "url": null, "relevance": "...", "documentType": "CASE_LAW|LEGISLATION|REGULATION" }],
+      "keyFactors": ["..."],
+      "risks": ["..."],
+      "nextSteps": ["..."]
+    }
+  ],
+  "controllingAuthority": [{ "citation": "...", "jurisdiction": "...", "weight": "binding|persuasive" }],
+  "elementAnalysis": [{ "element": "...", "satisfied": true, "supportingFragments": [], "gaps": [] }],
+  "proceduralPosture": "...",
+  "standardOfReview": "..."
+}
+
+RULES:
+- Generate 2-4 ranked outcomes from BEST to WORST
+- Each outcome MUST cite specific laws from the dataset by number
+- Arguments must be concrete and actionable
+- Include controlling authority and element analysis${datasetBlock}`,
       },
       {
         role: "user",
-        content: `Analyze this problem space and conclude it. Prioritize the conclusion with the highest question coverage and strongest evidence/constraint fit based on logical and legal reasoning.
-Return JSON with keys: conclusion, why (explain reasoning, citing applicable Canadian laws by number), description, suggestions (string[]), advice (string[]), confidence (HIGH|MEDIUM|LOW), basedOnQuestionCount (number), totalQuestionCount (number), controllingAuthority (array), elementAnalysis (array), applicableLaws (array), proceduralPosture (string), standardOfReview (string), missingJurisdictionalFacts (array).
+        content: `Analyze this problem space. Determine best outcomes and build argument strategy.
+${sideLabel ? `The user represents the ${sideLabel}. Build arguments from this perspective.` : ""}
+Return JSON with keys: summary, defendingSide, ourArguments, opponentArguments, rebuttalStrategy, bestOutcomes, confidence, basedOnQuestionCount, totalQuestionCount, controllingAuthority, elementAnalysis, proceduralPosture, standardOfReview.
 Data:
 ${JSON.stringify(payload, null, 2)}`,
       },
     ],
-    maxTokens: 2048,
+    maxTokens: 4096,
     temperature: 0.0,
     model: getActiveConclusionModel(),
   });
@@ -795,11 +901,8 @@ ${JSON.stringify(payload, null, 2)}`,
     return fallbackProblemSpaceConclusion(input);
   }
 
-  const conclusion =
-    typeof parsed.conclusion === "string" ? parsed.conclusion.trim() : "";
-  const why = typeof parsed.why === "string" ? parsed.why.trim() : "";
-  const description =
-    typeof parsed.description === "string" ? parsed.description.trim() : "";
+  const summary =
+    typeof parsed.summary === "string" ? parsed.summary.trim() : "";
 
   const confidenceRaw =
     typeof parsed.confidence === "string"
@@ -822,8 +925,48 @@ ${JSON.stringify(payload, null, 2)}`,
       ? Math.max(0, Math.round(parsed.totalQuestionCount))
       : 0;
 
-  const suggestions = normalizeBullets(parsed.suggestions, 4);
-  const advice = normalizeBullets(parsed.advice, 4);
+  const parseLikelihood = (val: string): "HIGH" | "MEDIUM" | "LOW" => {
+    const upper = val.trim().toUpperCase();
+    if (upper === "HIGH" || upper === "LOW") return upper;
+    return "MEDIUM";
+  };
+
+  const parseSupportingLaws = (laws: unknown[]): BestOutcome["supportingLaws"] => {
+    return laws
+      .map((al) => {
+        if (!al || typeof al !== "object") return null;
+        const record = al as Record<string, unknown>;
+        const title = typeof record.title === "string" ? record.title.trim() : "";
+        const citation = typeof record.citation === "string" ? record.citation.trim() : "";
+        const url = typeof record.url === "string" ? record.url.trim() : null;
+        const relevance = typeof record.relevance === "string" ? record.relevance.trim() : "";
+        const documentType = typeof record.documentType === "string" ? record.documentType.trim() : "LEGISLATION";
+        if (!title) return null;
+        return { title, citation, url, relevance, documentType };
+      })
+      .filter((l): l is BestOutcome["supportingLaws"][number] => Boolean(l));
+  };
+
+  const bestOutcomes: BestOutcome[] = Array.isArray(parsed.bestOutcomes)
+    ? parsed.bestOutcomes
+        .map((o) => {
+          if (!o || typeof o !== "object") return null;
+          const record = o as Record<string, unknown>;
+          const outcome = typeof record.outcome === "string" ? record.outcome.trim() : "";
+          const reasoning = typeof record.reasoning === "string" ? record.reasoning.trim() : "";
+          if (!outcome || !reasoning) return null;
+          const likelihood = parseLikelihood(String(record.likelihood ?? "MEDIUM"));
+          const requiredElements = normalizeBullets(record.requiredElements, 8);
+          const supportingLaws = Array.isArray(record.supportingLaws)
+            ? parseSupportingLaws(record.supportingLaws)
+            : [];
+          const keyFactors = normalizeBullets(record.keyFactors, 6);
+          const risks = normalizeBullets(record.risks, 6);
+          const nextSteps = normalizeBullets(record.nextSteps, 6);
+          return { outcome, likelihood, reasoning, requiredElements, supportingLaws, keyFactors, risks, nextSteps } as BestOutcome;
+        })
+        .filter((o): o is BestOutcome => Boolean(o))
+    : [];
 
   const controllingAuthority = Array.isArray(parsed.controllingAuthority)
     ? parsed.controllingAuthority
@@ -860,28 +1003,55 @@ ${JSON.stringify(payload, null, 2)}`,
     typeof parsed.proceduralPosture === "string" ? parsed.proceduralPosture.trim() : undefined;
   const standardOfReview =
     typeof parsed.standardOfReview === "string" ? parsed.standardOfReview.trim() : undefined;
-  const missingJurisdictionalFacts = Array.isArray(parsed.missingJurisdictionalFacts)
-    ? parsed.missingJurisdictionalFacts
-        .map((f) => (typeof f === "string" ? f.trim() : ""))
-        .filter(Boolean)
-    : [];
 
-  const applicableLaws = Array.isArray(parsed.applicableLaws)
-    ? parsed.applicableLaws
-        .map((al) => {
-          if (!al || typeof al !== "object") return null;
-          const title = typeof al.title === "string" ? al.title.trim() : "";
-          const citation = typeof al.citation === "string" ? al.citation.trim() : "";
-          const url = typeof al.url === "string" ? al.url.trim() : null;
-          const relevance = typeof al.relevance === "string" ? al.relevance.trim() : "";
-          const documentType = typeof al.documentType === "string" ? al.documentType.trim() : "LEGISLATION";
-          if (!title) return null;
-          return { title, citation, url, relevance, documentType };
+  // Parse argument strategy
+  const parsedDefendingSide =
+    typeof parsed.defendingSide === "string"
+      ? parsed.defendingSide.trim().toUpperCase()
+      : undefined;
+  const validSides: DefendingSide[] = ["PLAINTIFF", "DEFENDANT"];
+  const ourDefendingSide: DefendingSide | undefined =
+    parsedDefendingSide && validSides.includes(parsedDefendingSide as DefendingSide)
+      ? (parsedDefendingSide as DefendingSide)
+      : defendingSide;
+
+  const ourArguments: ArgumentEntry[] = Array.isArray(parsed.ourArguments)
+    ? parsed.ourArguments
+        .map((arg) => {
+          if (!arg || typeof arg !== "object") return null;
+          const record = arg as Record<string, unknown>;
+          const argument = typeof record.argument === "string" ? record.argument.trim() : "";
+          const rawStrength = typeof record.strength === "string" ? record.strength.trim().toUpperCase() : "MEDIUM";
+          const strength: ArgumentEntry["strength"] =
+            rawStrength === "STRONG" || rawStrength === "WEAK" ? rawStrength : "MEDIUM";
+          const supportingAuthority = typeof record.supportingAuthority === "string" ? record.supportingAuthority.trim() : undefined;
+          const keyEvidence = typeof record.keyEvidence === "string" ? record.keyEvidence.trim() : undefined;
+          if (!argument) return null;
+          return { argument, strength, supportingAuthority, keyEvidence } as ArgumentEntry;
         })
-        .filter((al): al is { title: string; citation: string; url: string | null; relevance: string; documentType: string } => Boolean(al))
+        .filter((a): a is ArgumentEntry => Boolean(a))
     : [];
 
-  if (!conclusion || !why || !description) {
+  const opponentArguments: OpponentArgumentEntry[] = Array.isArray(parsed.opponentArguments)
+    ? parsed.opponentArguments
+        .map((arg) => {
+          if (!arg || typeof arg !== "object") return null;
+          const record = arg as Record<string, unknown>;
+          const argument = typeof record.argument === "string" ? record.argument.trim() : "";
+          const rawStrength = typeof record.strength === "string" ? record.strength.trim().toUpperCase() : "MEDIUM";
+          const strength: OpponentArgumentEntry["strength"] =
+            rawStrength === "STRONG" || rawStrength === "WEAK" ? rawStrength : "MEDIUM";
+          const counterRebuttal = typeof record.counterRebuttal === "string" ? record.counterRebuttal.trim() : "";
+          const rebuttalAuthority = typeof record.rebuttalAuthority === "string" ? record.rebuttalAuthority.trim() : undefined;
+          if (!argument || !counterRebuttal) return null;
+          return { argument, strength, counterRebuttal, rebuttalAuthority } as OpponentArgumentEntry;
+        })
+        .filter((a): a is OpponentArgumentEntry => Boolean(a))
+    : [];
+
+  const rebuttalStrategy = normalizeBullets(parsed.rebuttalStrategy, 6);
+
+  if (!summary || bestOutcomes.length === 0) {
     return fallbackProblemSpaceConclusion(input);
   }
 
@@ -890,12 +1060,12 @@ ${JSON.stringify(payload, null, 2)}`,
     (_fallback ??= fallbackProblemSpaceConclusion(input));
 
   return {
-    conclusion: conclusion.slice(0, 600),
-    why: why.slice(0, 600),
-    description: description.slice(0, 600),
-    suggestions:
-      suggestions.length > 0 ? suggestions : getFallback().suggestions,
-    advice: advice.length > 0 ? advice : getFallback().advice,
+    summary: summary.slice(0, 800),
+    defendingSide: ourDefendingSide,
+    ourArguments: ourArguments.length > 0 ? ourArguments : undefined,
+    opponentArguments: opponentArguments.length > 0 ? opponentArguments : undefined,
+    rebuttalStrategy: rebuttalStrategy.length > 0 ? rebuttalStrategy : undefined,
+    bestOutcomes: bestOutcomes.length > 0 ? bestOutcomes : getFallback().bestOutcomes,
     confidence,
     basedOnQuestionCount,
     totalQuestionCount,
@@ -903,8 +1073,6 @@ ${JSON.stringify(payload, null, 2)}`,
     elementAnalysis,
     proceduralPosture,
     standardOfReview,
-    missingJurisdictionalFacts,
-    applicableLaws,
   };
 };
 
@@ -1142,19 +1310,23 @@ const fallbackProblemSpaceConclusion = (
 
   if (questions.length === 0) {
     return {
-      conclusion:
-        "There is not enough explicit question framing yet to conclude this problem space confidently.",
-      why: "A conclusion is strongest when it answers clear question fragments. This space currently lacks explicit question anchors.",
-      description:
-        "Add at least 2-3 focused question fragments across your nodes, then run Conclude problem space again.",
-      suggestions: [
-        "Convert broad uncertainties into specific question fragments.",
-        "Pair each question with at least one observation or constraint.",
-        "Mark one question as the primary decision question.",
-      ],
-      advice: [
-        "Prefer one measurable question per node.",
-        "Avoid jumping to conclusions before evidence and constraints are represented.",
+      summary:
+        "There is not enough explicit question framing yet to determine best outcomes confidently.",
+      bestOutcomes: [
+        {
+          outcome: "Awaiting sufficient question framing to determine viable outcomes",
+          likelihood: "LOW",
+          reasoning: "A strong outcome analysis requires clear question fragments. This space currently lacks explicit question anchors to anchor legal analysis.",
+          requiredElements: [],
+          supportingLaws: [],
+          keyFactors: [],
+          risks: ["Insufficient question framing", "No clear legal issue defined"],
+          nextSteps: [
+            "Add at least 2-3 focused question fragments across your nodes.",
+            "Pair each question with at least one observation or constraint.",
+            "Re-run outcome analysis after adding question fragments.",
+          ],
+        },
       ],
       confidence: "LOW",
       basedOnQuestionCount: 0,
@@ -1187,7 +1359,7 @@ const fallbackProblemSpaceConclusion = (
         return b.score - a.score;
       })[0] ?? null;
 
-  const pickedConclusion =
+  const pickedOutcome =
     bestCandidate?.candidate.content.trim() ||
     allFragments
       .find((fragment) => fragment.type !== "QUESTION")
@@ -1202,18 +1374,22 @@ const fallbackProblemSpaceConclusion = (
       : "LOW";
 
   return {
-    conclusion: pickedConclusion,
-    why: `This conclusion best aligns with ${basedOnQuestionCount} of ${questions.length} explicit questions by semantic overlap and fit with available constraints/observations.`,
-    description:
-      "The conclusion reflects the strongest currently-supported direction in your nodes, but you should still validate assumptions with targeted evidence.",
-    suggestions: [
-      "Turn this conclusion into a concrete next-step experiment.",
-      "Add one supporting observation and one opposing constraint to stress-test it.",
-      "Re-run conclusion after updating contradictory fragments.",
-    ],
-    advice: [
-      "Treat this as a working conclusion, not an irreversible decision.",
-      "Use short feedback loops to confirm whether the conclusion remains true.",
+    summary: `Based on ${basedOnQuestionCount} of ${questions.length} question fragments, the following outcome has the strongest support.`,
+    bestOutcomes: [
+      {
+        outcome: pickedOutcome,
+        likelihood: confidence === "MEDIUM" ? "MEDIUM" : "LOW",
+        reasoning: `This outcome best aligns with ${basedOnQuestionCount} of ${questions.length} explicit questions by semantic overlap and fit with available constraints/observations. Add more evidence and legal authorities to strengthen this analysis.`,
+        requiredElements: questions.map((q) => q.content.slice(0, 120)),
+        supportingLaws: [],
+        keyFactors: conclusionCandidates.slice(0, 3).map((c) => c.content.slice(0, 120)),
+        risks: ["Limited evidence base", "Few controlling authorities cited"],
+        nextSteps: [
+          "Add supporting observations and legal authorities.",
+          "Re-run outcome analysis after updating fragments.",
+          "Cross-reference with CanLII dataset for applicable laws.",
+        ],
+      },
     ],
     confidence,
     basedOnQuestionCount,
@@ -1689,6 +1865,7 @@ export const analyzeFragmentRelationships = async (
     return [];
   }
 
+  await ensureDatasetFresh();
   const datasetCtx = await searchCanLIIDataset(fragments);
   return analyzeFragmentRelationshipsWithNvidia(fragments, datasetCtx);
 };
@@ -1930,18 +2107,20 @@ export const decideProblemSpaceClarityProgress = (
 
 export const generateProblemSpaceConclusion = async (
   input: ClarityConnectionInput[],
+  defendingSide?: DefendingSide,
 ): Promise<ProblemSpaceConclusion> => {
   if (input.length === 0) {
     return fallbackProblemSpaceConclusion(input);
   }
 
+  await ensureDatasetFresh();
   const allFragments = input.flatMap((node) =>
     node.fragments.map((f) => ({ content: f.content })),
   );
   const datasetCtx = await searchCanLIIDataset(allFragments);
 
   try {
-    return await generateProblemSpaceConclusionWithNvidia(input, datasetCtx);
+    return await generateProblemSpaceConclusionWithNvidia(input, datasetCtx, defendingSide);
   } catch {
     return fallbackProblemSpaceConclusion(input);
   }

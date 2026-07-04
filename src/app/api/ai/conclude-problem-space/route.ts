@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 const requestSchema = z.object({
   problemSpaceId: z.string().min(1),
+  defendingSide: z.enum(["PLAINTIFF", "DEFENDANT"]).optional(),
 });
 
 const stableInputSignature = (
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
       }))
       .filter((node) => node.fragments.length > 0);
 
-    const signature = stableInputSignature(input);
+    const signature = stableInputSignature(input) + (parsed.data.defendingSide ? `::${parsed.data.defendingSide}` : "");
 
     if (
       problemSpace.aiConclusionSignature === signature &&
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const result = await generateProblemSpaceConclusion(input);
+    const result = await generateProblemSpaceConclusion(input, parsed.data.defendingSide);
 
     await prisma.problemSpace.update({
       where: { id: problemSpace.id },
