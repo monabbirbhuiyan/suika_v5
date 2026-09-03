@@ -60,7 +60,6 @@ export const createProblemSpace = async (data: any) => {
     data: {
       id: crypto.randomUUID(),
       title: data.title,
-      description: data.description,
       createdAt: new Date(),
       updatedAt: new Date(),
       user: {
@@ -76,7 +75,7 @@ export const createProblemSpace = async (data: any) => {
 
 export const updateProblemSpace = async (
   id: string,
-  data: { title: string; description?: string | null },
+  data: { title: string },
 ) => {
   const session = await getServerSession();
   const user = session?.user;
@@ -105,12 +104,10 @@ export const updateProblemSpace = async (
     },
     data: {
       title: data.title,
-      description: data.description ?? null,
     },
     select: {
       id: true,
       title: true,
-      description: true,
       updatedAt: true,
     },
   });

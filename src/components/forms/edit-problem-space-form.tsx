@@ -26,7 +26,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   problemSpaceId: string;
   initialTitle: string;
-  initialDescription?: string | null;
   userId: string;
 };
 
@@ -35,7 +34,6 @@ const EditProblemSpaceForm = ({
   onOpenChange,
   problemSpaceId,
   initialTitle,
-  initialDescription,
   userId,
 }: Props) => {
   const router = useRouter();
@@ -48,7 +46,6 @@ const EditProblemSpaceForm = ({
     resolver: zodResolver(problemSpaceSchema),
     defaultValues: {
       title: initialTitle,
-      description: initialDescription ?? "",
     },
   });
 
@@ -59,9 +56,8 @@ const EditProblemSpaceForm = ({
 
     form.reset({
       title: initialTitle,
-      description: initialDescription ?? "",
     });
-  }, [form, initialDescription, initialTitle, open]);
+  }, [form, initialTitle, open]);
 
   const onSubmit = async (data: ProblemSpaceFormValues) => {
     setIsSubmitting(true);
@@ -69,7 +65,6 @@ const EditProblemSpaceForm = ({
     try {
       const response = await updateProblemSpace(problemSpaceId, {
         title: data.title,
-        description: data.description,
       });
 
       if (!response) {
@@ -162,24 +157,7 @@ const EditProblemSpaceForm = ({
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-[13px] text-stone-600">
-                              Description
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                value={field.value ?? ""}
-                                className="h-10 bg-stone-50 border-stone-200 focus-visible:ring-stone-300 text-[14px] rounded-lg"
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
+
                     </div>
 
                     <div className="mt-6 flex items-center justify-between">

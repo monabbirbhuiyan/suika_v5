@@ -46,7 +46,6 @@ export type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export const problemSpaceSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
 });
 
 export type ProblemSpaceFormValues = z.infer<typeof problemSpaceSchema>;

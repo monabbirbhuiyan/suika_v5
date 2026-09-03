@@ -268,7 +268,6 @@ const ProblemSpaceContainer = ({ problemSpace }: Props) => {
         onOpenChange={setEditOpen}
         problemSpaceId={editingSpace?.id ?? ""}
         initialTitle={editingSpace?.title ?? ""}
-        initialDescription={editingSpace?.description ?? ""}
         userId={editingSpace?.userId ?? ""}
       />
       {deleteOpen && deletingSpace && (

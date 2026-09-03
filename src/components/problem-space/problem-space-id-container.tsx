@@ -9,7 +9,7 @@ import {
   User,
 } from "@/generated/prisma";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import LoadingSpinner from "../global/loading-spinner";
 import { Button } from "../ui/button";
@@ -17,6 +17,11 @@ import CreateNodeForm from "../forms/create-node-form";
 import ProblemSpaceNodes from "./node";
 import ConcludeProblemSpacePanel from "./conclude-problem-space-panel";
 import EditProblemSpaceForm from "../forms/edit-problem-space-form";
+
+const CaseStudyForm = dynamic(
+  () => import("../forms/case-study-form"),
+  { ssr: false },
+);
 
 const ClarityGraphCanvas = dynamic(
   () => import("@/components/problem-space/clarity-graph-canvas"),
@@ -109,7 +114,6 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
           onOpenChange={setEditOpen}
           problemSpaceId={problemSpace.id}
           initialTitle={problemSpace.title}
-          initialDescription={problemSpace.description}
           userId={user.id}
         />
 
@@ -141,6 +145,8 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
         </div>
 
         <TabsContent value="Nodes" className="mt-0 p-6 overflow-auto">
+          <CaseStudyForm problemSpaceId={problemSpace.id} />
+
           <div className="flex items-center justify-between mb-5">
             <p className="text-[13px] text-stone-400">
               {totalNodes} node{totalNodes !== 1 ? "s" : ""} · {totalFragments}{" "}
@@ -149,7 +155,8 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
             <Button
               onClick={() => setCreateNodeOpen(true)}
               size="sm"
-              className="h-8 text-[13px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg"
+              variant="outline"
+              className="h-8 text-[13px] text-stone-600 border-stone-200 hover:bg-stone-50 rounded-lg"
             >
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               New Node
@@ -163,23 +170,21 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
           {!graphNodes || graphNodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="h-16 w-16 rounded-2xl bg-[#dff3e7] flex items-center justify-center mb-4">
-                <Plus className="h-6 w-6 text-[#12753e]" />
+                <Sparkles className="h-6 w-6 text-[#12753e]" />
               </div>
               <p className="text-[15px] text-stone-600 font-medium">
-                No nodes yet
+                Get started by importing a case study
               </p>
-              <p className="text-[13px] text-stone-400 mt-1.5 max-w-xs text-center leading-relaxed">
-                Nodes help you organize fragments by topic. Create your first
-                node to get started.
+              <p className="text-[13px] text-stone-400 mt-1.5 max-w-sm text-center leading-relaxed">
+                Upload or paste a legal case study above and AI will
+                automatically create nodes and fragments for you.
               </p>
-              <Button
+              <button
                 onClick={() => setCreateNodeOpen(true)}
-                size="sm"
-                className="mt-5 h-9 text-[13px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg"
+                className="text-[12px] text-stone-400 hover:text-stone-600 transition-colors underline underline-offset-2 mt-4"
               >
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Create Node
-              </Button>
+                or create a node manually
+              </button>
             </div>
           ) : null}
           {fragments === null ? (

@@ -6,6 +6,81 @@ import { stableInputSignature } from "@/lib/cache-signature";
 import { singleInstanceFragmentTypes } from "@/lib/schemas";
 import { getServerSession } from "./get-session";
 
+export const createNodesFromCaseStudy = async (
+  problemSpaceId: string,
+  nodes: Array<{
+    title: string;
+    fragments: Array<{
+      type: string;
+      content: string;
+    }>;
+  }>,
+) => {
+  const session = await getServerSession();
+  const user = session?.user;
+
+  if (!user || !problemSpaceId) {
+    return null;
+  }
+
+  const problemSpace = await prisma.problemSpace.findFirst({
+    where: {
+      id: problemSpaceId,
+      userId: user.id,
+    },
+    select: { id: true },
+  });
+
+  if (!problemSpace) {
+    return null;
+  }
+
+  const validTypes = new Set(["QUESTION", "IDEA", "OBSERVATION", "CONSTRAINS", "CONCLUSION"]);
+
+  const createdNodes: string[] = [];
+
+  for (const nodeData of nodes) {
+    const node = await prisma.graphNode.create({
+      data: {
+        title: nodeData.title,
+        problemSpace: {
+          connect: { id: problemSpaceId },
+        },
+      },
+    });
+
+    createdNodes.push(node.id);
+
+    let sortOrder = 0;
+    for (const fragmentData of nodeData.fragments) {
+      if (!validTypes.has(fragmentData.type)) continue;
+
+      try {
+        await prisma.fragment.create({
+          data: {
+            content: fragmentData.content,
+            type: fragmentData.type as "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION",
+            sortOrder,
+            node: {
+              connect: { id: node.id },
+            },
+            problemSpace: {
+              connect: { id: problemSpaceId },
+            },
+          },
+        });
+        sortOrder++;
+      } catch {
+        // Skip fragments that fail unique constraints
+      }
+    }
+  }
+
+  void refreshProblemSpaceProgress(problemSpaceId);
+
+  return { nodeIds: createdNodes, nodeCount: createdNodes.length };
+};
+
 const singleInstanceFragmentTypeSet = new Set<string>(
   singleInstanceFragmentTypes,
 );
