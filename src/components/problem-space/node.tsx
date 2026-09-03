@@ -3,18 +3,18 @@
 import React from "react";
 import { Fragment, GraphNode } from "@/generated/prisma";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+  MoreHorizontal,
+  ChevronDown,
+} from "lucide-react";
 import { toast } from "sonner";
 import { deleteNode, updateNode } from "@/action/fragments";
 import CreateFragmentForm from "../forms/create-fragment-form";
 import { Button } from "../ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../ui/card";
 import { Input } from "../ui/input";
 import {
   Dialog,
@@ -24,6 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import Fragments from "../fragments/fragments";
 
 type DeleteTarget = { kind: "node"; id: string } | null;
@@ -49,6 +55,9 @@ const ProblemSpaceNodes = ({
     null,
   );
   const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null);
+  const [collapsedNodes, setCollapsedNodes] = React.useState<Set<string>>(
+    new Set(),
+  );
 
   const fragmentsByNode = React.useMemo(() => {
     const grouped = new Map<string, Fragment[]>();
@@ -61,6 +70,18 @@ const ProblemSpaceNodes = ({
 
     return grouped;
   }, [fragments]);
+
+  const toggleCollapse = (nodeId: string) => {
+    setCollapsedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  };
 
   const startNodeEdit = (node: Pick<GraphNode, "id" | "title">) => {
     setEditingNodeId(node.id);
@@ -146,94 +167,152 @@ const ProblemSpaceNodes = ({
         lockNodeSelection
       />
 
-      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
         {graphNodes.map((node) => {
           const nodeFragments = fragmentsByNode.get(node.id) ?? [];
+          const isCollapsed = collapsedNodes.has(node.id);
 
           return (
-            <Card key={node.id} className="py-4 gap-3">
-              <CardHeader className="px-4 pb-1">
-                <div className="flex items-center justify-between gap-2">
-                  {editingNodeId === node.id ? (
-                    <div className="flex-1 flex items-center gap-2">
-                      <Input
-                        value={editingNodeTitle}
-                        onChange={(event) =>
-                          setEditingNodeTitle(event.target.value)
-                        }
-                        className="h-8"
-                        placeholder="Node name"
+            <div
+              key={node.id}
+              className="group rounded-xl bg-white border border-stone-200/70 border-l-[3px] border-l-[#12753e] shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] transition-all duration-200"
+            >
+              {/* Node header */}
+              <div
+                className="px-4 py-3 flex items-center justify-between gap-2 cursor-pointer select-none"
+                onClick={() => toggleCollapse(node.id)}
+              >
+                {editingNodeId === node.id ? (
+                  <div
+                    className="flex-1 flex items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Input
+                      value={editingNodeTitle}
+                      onChange={(event) =>
+                        setEditingNodeTitle(event.target.value)
+                      }
+                      className="h-8 bg-stone-50 border-stone-200 focus-visible:ring-stone-300 text-[13px]"
+                      placeholder="Node name"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleUpdateNode(node.id)}
+                      disabled={actionLoadingKey === `node-update-${node.id}`}
+                      className="h-8 px-3 bg-[#12753e] hover:bg-[#0d582f] text-white text-[12px] rounded-lg"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={cancelNodeEdit}
+                      className="h-8 w-8 text-stone-400 hover:text-stone-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-stone-300 shrink-0 transition-transform duration-200 ${
+                          isCollapsed ? "-rotate-90" : ""
+                        }`}
                       />
-                      <Button
-                        size="sm"
-                        onClick={() => handleUpdateNode(node.id)}
-                        disabled={actionLoadingKey === `node-update-${node.id}`}
-                      >
-                        Save
-                      </Button>
+                      <h3 className="text-[13px] font-semibold text-stone-800 truncate">
+                        {node.title}
+                      </h3>
+                      <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#dff3e7] text-[#12753e] text-[10px] font-semibold shrink-0">
+                        {nodeFragments.length}
+                      </span>
+                    </div>
+                    <div
+                      className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={cancelNodeEdit}
+                        className="h-7 w-7 text-stone-400 hover:text-[#12753e] hover:bg-[#dff3e7]"
+                        onClick={() => setCreateFragmentNodeId(node.id)}
+                        title="Add fragment"
                       >
-                        <X className="h-4 w-4" />
+                        <Plus className="h-3.5 w-3.5" />
                       </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-44 bg-white border-stone-200 shadow-xl rounded-xl"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => setCreateFragmentNodeId(node.id)}
+                            className="text-stone-600 focus:bg-stone-50 focus:text-stone-800 rounded-lg text-[13px] cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-2" />
+                            Add Fragment
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => startNodeEdit(node)}
+                            className="text-stone-600 focus:bg-stone-50 focus:text-stone-800 rounded-lg text-[13px] cursor-pointer"
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-[#bc000e] focus:bg-[#fde6e8] focus:text-[#bc000e] rounded-lg text-[13px] cursor-pointer"
+                            onClick={() =>
+                              setDeleteTarget({ kind: "node", id: node.id })
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  ) : (
-                    <>
-                      <CardTitle className="text-base">{node.title}</CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          onClick={() => setCreateFragmentNodeId(node.id)}
-                          className="inline-flex items-center gap-1.5"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Create Fragment
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => startNodeEdit(node)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() =>
-                            setDeleteTarget({ kind: "node", id: node.id })
-                          }
-                          disabled={
-                            actionLoadingKey === `node-delete-${node.id}`
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </CardHeader>
-
-              <CardContent className="px-4">
-                {nodeFragments.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                    No fragments in this node yet.
-                  </div>
-                ) : (
-                  <Fragments
-                    problemSpaceId={problemSpaceId}
-                    nodeFragments={nodeFragments}
-                  />
+                  </>
                 )}
-              </CardContent>
+              </div>
 
-              <CardFooter className="px-4 pt-0 text-[10px] text-muted-foreground">
-                {nodeFragments.length} fragment
-                {nodeFragments.length === 1 ? "" : "s"}
-              </CardFooter>
-            </Card>
+              {/* Fragments area - collapsible */}
+              {editingNodeId !== node.id && (
+                <div
+                  className={`${
+                    isCollapsed ? "animate-slide-up" : "animate-slide-down"
+                  }`}
+                >
+                  <div className="px-4 pb-3 pt-0">
+                    {nodeFragments.length === 0 ? (
+                      <button
+                        onClick={() => setCreateFragmentNodeId(node.id)}
+                        className="w-full rounded-lg border border-dashed border-stone-200 bg-stone-50/30 py-5 text-[12px] text-stone-400 hover:border-[#12753e]/30 hover:bg-[#dff3e7]/30 hover:text-[#12753e] transition-all duration-150 cursor-pointer"
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <Plus className="h-4 w-4 opacity-50" />
+                          <span>Add a fragment</span>
+                        </div>
+                      </button>
+                    ) : (
+                      <Fragments
+                        problemSpaceId={problemSpaceId}
+                        nodeFragments={nodeFragments}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -246,18 +325,21 @@ const ProblemSpaceNodes = ({
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="bg-white border-stone-200 rounded-2xl max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete node</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-stone-800 text-[15px]">
+              Delete node
+            </DialogTitle>
+            <DialogDescription className="text-stone-500 text-[13px]">
               This will permanently delete the node and all fragments inside it.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="secondary"
               onClick={() => setDeleteTarget(null)}
               disabled={actionLoadingKey !== null}
+              className="bg-stone-100 hover:bg-stone-200 text-stone-700 border-0 rounded-lg text-[13px]"
             >
               Cancel
             </Button>
@@ -265,6 +347,7 @@ const ProblemSpaceNodes = ({
               variant="destructive"
               onClick={handleConfirmDelete}
               disabled={actionLoadingKey !== null}
+              className="bg-[#bc000e] hover:bg-[#8e000a] text-white rounded-lg text-[13px]"
             >
               Delete
             </Button>

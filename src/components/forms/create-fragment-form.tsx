@@ -45,16 +45,11 @@ type Props = {
 };
 
 const typeButtonStyles: Record<(typeof fragmentTypes)[number], string> = {
-  QUESTION: "border-primary bg-primary/10 text-primary",
-  IDEA: "border-[#005b96] bg-[#005b96]/10 text-[#005b96]",
-  OBSERVATION: "border-[#dc8b30] bg-[#dc8b30]/10 text-[#dc8b30]",
-  CONSTRAINS: "border-destructive bg-destructive/10 text-destructive",
-  CONCLUSION: "border-[#52bf90] bg-[#52bf90]/10 text-[#52bf90]",
-  LEGAL_ELEMENT: "border-[#6d28d9] bg-[#6d28d9]/10 text-[#6d28d9]",
-  BINDING_AUTHORITY: "border-[#7c3aed] bg-[#7c3aed]/10 text-[#7c3aed]",
-  PERSUASIVE_AUTHORITY: "border-[#a855f7] bg-[#a855f7]/10 text-[#a855f7]",
-  PROCEDURAL_FACT: "border-[#0891b2] bg-[#0891b2]/10 text-[#0891b2]",
-  EVIDENTIARY_FACT: "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]",
+  QUESTION: "border-amber-200 bg-amber-50 text-amber-700",
+  IDEA: "border-sky-200 bg-sky-50 text-sky-700",
+  OBSERVATION: "border-orange-200 bg-orange-50 text-orange-700",
+  CONSTRAINS: "border-rose-200 bg-rose-50 text-rose-700",
+  CONCLUSION: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
 const singleInstanceFragmentTypeSet = new Set<string>(
@@ -138,15 +133,13 @@ const CreateFragmentForm = ({
       QUESTION: "Question",
       IDEA: "Idea",
       OBSERVATION: "Observation",
-      CONSTRAINS: "Constrains",
+      CONSTRAINS: "Constraint",
       CONCLUSION: "Conclusion",
-      LEGAL_ELEMENT: "Legal Element",
-      BINDING_AUTHORITY: "Binding Auth.",
-      PERSUASIVE_AUTHORITY: "Persuasive Auth.",
-      PROCEDURAL_FACT: "Procedural Fact",
-      EVIDENTIARY_FACT: "Evidentiary Fact",
     };
-    return labels[value] ?? value.charAt(0) + value.slice(1).toLowerCase().replace("_", " ");
+    return (
+      labels[value] ??
+      value.charAt(0) + value.slice(1).toLowerCase().replace("_", " ")
+    );
   };
 
   const onSubmit = async (data: FragmentFormValues) => {
@@ -207,7 +200,7 @@ const CreateFragmentForm = ({
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -215,20 +208,20 @@ const CreateFragmentForm = ({
           >
             <motion.div
               className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="rounded-2xl bg-background border border-border shadow-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="font-serif text-xl text-foreground">
-                    Create Fragment
+              <div className="rounded-2xl bg-white border border-stone-200 shadow-xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-[15px] font-semibold text-stone-800">
+                    New Fragment
                   </h2>
                   <button
                     onClick={() => onOpenChange(false)}
-                    className="text-muted-foreground hover:text-foreground transition-colors rounded-md p-1"
+                    className="text-stone-300 hover:text-stone-500 transition-colors rounded-lg p-1 hover:bg-stone-50"
                     aria-label="Close dialog"
                   >
                     <X className="h-4 w-4" />
@@ -243,9 +236,11 @@ const CreateFragmentForm = ({
                         name="type"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Type</FormLabel>
+                            <FormLabel className="text-[13px] text-stone-600">
+                              Type
+                            </FormLabel>
                             <FormControl>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2">
+                              <div className="grid grid-cols-2 gap-1.5">
                                 {fragmentTypes.map((type) => {
                                   const isActive = field.value === type;
                                   const isDisabled = disabledTypeSet.has(type);
@@ -254,13 +249,13 @@ const CreateFragmentForm = ({
                                       key={type}
                                       type="button"
                                       variant="outline"
-                                      className={`justify-start border max-w-full transition-opacity hover:cursor-pointer ${typeButtonStyles[type]} ${
+                                      className={`justify-start border text-[11px] h-8 transition-all duration-150 hover:cursor-pointer ${typeButtonStyles[type]} ${
                                         isActive
-                                          ? "opacity-100"
+                                          ? "ring-2 ring-offset-1 ring-stone-300 opacity-100"
                                           : isDisabled
                                             ? "opacity-20"
-                                            : "opacity-45 hover:opacity-70"
-                                      }  px-3 py-2 whitespace-nowrap`}
+                                            : "opacity-50 hover:opacity-80"
+                                      } px-3 rounded-lg`}
                                       onClick={() => {
                                         if (!isDisabled) {
                                           field.onChange(type);
@@ -274,7 +269,7 @@ const CreateFragmentForm = ({
                                 })}
                               </div>
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage className="text-[12px]" />
                           </FormItem>
                         )}
                       />
@@ -284,15 +279,17 @@ const CreateFragmentForm = ({
                         name="content"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Content</FormLabel>
+                            <FormLabel className="text-[13px] text-stone-600">
+                              Content
+                            </FormLabel>
                             <FormControl>
                               <Textarea
                                 {...field}
-                                className="min-h-24"
+                                className="min-h-24 text-[14px] bg-stone-50 border-stone-200 focus-visible:ring-stone-300 rounded-lg leading-relaxed resize-none"
                                 placeholder="Write your fragment..."
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage className="text-[12px]" />
                           </FormItem>
                         )}
                       />
@@ -303,26 +300,32 @@ const CreateFragmentForm = ({
                           name="nodeId"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Node</FormLabel>
+                              <FormLabel className="text-[13px] text-stone-600">
+                                Node
+                              </FormLabel>
                               <FormControl>
                                 <Select
                                   onValueChange={field.onChange}
                                   defaultValue={field.value}
                                   value={field.value}
                                 >
-                                  <SelectTrigger className="w-full">
+                                  <SelectTrigger className="w-full h-10 bg-stone-50 border-stone-200 rounded-lg text-[14px]">
                                     <SelectValue placeholder="Select a node" />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent className="bg-white border-stone-200 rounded-xl">
                                     {nodes.map((node) => (
-                                      <SelectItem key={node.id} value={node.id}>
+                                      <SelectItem
+                                        key={node.id}
+                                        value={node.id}
+                                        className="text-[13px] rounded-lg"
+                                      >
                                         {node.title}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </FormControl>
-                              <FormMessage />
+                              <FormMessage className="text-[12px]" />
                             </FormItem>
                           )}
                         />
@@ -330,22 +333,22 @@ const CreateFragmentForm = ({
                     </div>
 
                     {error ? (
-                      <p className="text-sm text-destructive mt-4">{error}</p>
+                      <p className="text-[13px] text-red-500 mt-3">{error}</p>
                     ) : null}
 
-                    <div className="flex items-center justify-end gap-3 mt-6">
+                    <div className="flex items-center justify-end gap-2 mt-5">
                       <Button
                         type="button"
                         onClick={() => onOpenChange(false)}
-                        variant="secondary"
-                        className="rounded-full px-5"
+                        variant="ghost"
+                        className="text-[13px] text-stone-500 hover:text-stone-700 h-9 rounded-lg"
                         disabled={loading}
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
-                        className="rounded-full px-6"
+                        className="h-9 px-5 text-[13px] bg-stone-800 hover:bg-stone-700 text-white rounded-lg"
                         disabled={loading}
                       >
                         {loading ? "Creating..." : "Create"}

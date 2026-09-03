@@ -7,19 +7,19 @@ const ACTIVE_AI_PROVIDER = (process.env.AI_PROVIDER ?? "nvidia").toLowerCase();
 
 const DEFAULT_CHAT_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-2.5-flash";
 const DEFAULT_NVIDIA_MODEL =
-  process.env.NVIDIA_AI_MODEL ?? "google/gemma-3n-e2b-it";
+  process.env.NVIDIA_AI_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5";
 const DEFAULT_NVIDIA_CHAT_MODEL =
   process.env.NVIDIA_AI_CHAT_MODEL ?? DEFAULT_NVIDIA_MODEL;
-const DEFAULT_NVIDIA_WEAVING_MODEL =
-  process.env.NVIDIA_AI_WEAVING_MODEL ?? "google/gemma-3n-e2b-it";
 const DEFAULT_NVIDIA_RELATIONSHIP_MODEL =
-  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? "google/gemma-3n-e2b-it";
+  process.env.NVIDIA_AI_RELATIONSHIP_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5";
 const DEFAULT_NVIDIA_CONCLUSION_MODEL =
-  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? "google/gemma-3n-e2b-it";
+  process.env.NVIDIA_AI_CONCLUSION_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5";
 const NVIDIA_THINKING_MODE =
-  (process.env.NVIDIA_AI_THINKING ?? "false").toLowerCase() === "true";
+  (process.env.NVIDIA_AI_THINKING ?? "true").toLowerCase() === "true";
 
 const MAX_RELATIONSHIP_EDGES = 8;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 500;
 
 // ─── CanLII Dataset Context ──────────────────────────────────────────────────
 
@@ -149,7 +149,8 @@ async function ensureDatasetFresh(): Promise<void> {
     lastFreshnessResult = stale;
 
     if (stale) {
-      await syncRecent({ jurisdictions: ["on", "ca"] });
+      // Fire-and-forget: don't block the LLM call on dataset sync
+      void syncRecent({ jurisdictions: ["on", "ca"] });
     }
   } catch {
     // Non-blocking: if freshness check fails, proceed with existing data
@@ -171,48 +172,13 @@ export type GroqChatOptions = {
 };
 
 export type WeavingSuggestionStrength = "STRONG" | "MEDIUM" | "GENTLE";
-export type WeavingSuggestionKind =
-  | "MISSING_QUESTION"
-  | "EVIDENCE_GAP"
-  | "MISSING_ELEMENT"
-  | "AUTHORITY_GAP"
-  | "JURISDICTIONAL_DEFECT"
-  | "PROCEDURAL_BAR"
-  | "STANDARD_OF_REVIEW"
-  | "FACTUAL_DISPUTE"
-  | "AFFIRMATIVE_DEFENSE"
-  | "DAMAGES_SPECIFICATION";
 
 type FragmentType =
   | "QUESTION"
   | "IDEA"
   | "OBSERVATION"
   | "CONSTRAINS"
-  | "CONCLUSION"
-  | "LEGAL_ELEMENT"
-  | "BINDING_AUTHORITY"
-  | "PERSUASIVE_AUTHORITY"
-  | "PROCEDURAL_FACT"
-  | "EVIDENTIARY_FACT";
-
-export type WeavingSuggestionInput = {
-  title: string;
-  fragments: Array<{
-    id: string;
-    type: FragmentType;
-    content: string;
-  }>;
-};
-
-export type WeavingSuggestion = {
-  fromTitle: string;
-  toTitle: WeavingSuggestionKind;
-  reason: string;
-  strength: WeavingSuggestionStrength;
-  focusFragmentId: string;
-  recommendation: string;
-  rationale: string;
-};
+  | "CONCLUSION";
 
 export type ClarityConnectionInput = {
   nodeId: string;
@@ -231,6 +197,11 @@ export type ClarityConnectionSuggestion = {
   toFragmentId: string;
   reason: string;
   strength: WeavingSuggestionStrength;
+  legalCitations?: Array<{
+    title: string;
+    citation: string;
+    relevance: string;
+  }>;
 };
 
 export type DefendingSide = "PLAINTIFF" | "DEFENDANT";
@@ -297,11 +268,6 @@ const CLARITY_FRAGMENT_TYPES: FragmentType[] = [
   "OBSERVATION",
   "CONSTRAINS",
   "CONCLUSION",
-  "LEGAL_ELEMENT",
-  "BINDING_AUTHORITY",
-  "PERSUASIVE_AUTHORITY",
-  "PROCEDURAL_FACT",
-  "EVIDENTIARY_FACT",
 ];
 
 type ClarityRelationship = "CONTRADICTS" | "CLARIFIES" | "RESOLVES";
@@ -311,6 +277,17 @@ type RelationshipRecord = {
   target_id: string;
   relationship: ClarityRelationship;
   rationale: string;
+  legalCitations?: Array<{
+    title: string;
+    citation: string;
+    relevance: string;
+  }>;
+};
+
+type AnalyzeRelationshipOptions = {
+  includeDatasetContext?: boolean;
+  maxFragmentContentChars?: number;
+  maxOutputTokens?: number;
 };
 
 export const suikaFallbackQuotes = [
@@ -353,12 +330,33 @@ const getGemini = () => {
 
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
-const getActiveChatModel = () => {
-  return DEFAULT_NVIDIA_CHAT_MODEL;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+): Promise<T> => {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < maxRetries) {
+        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        const jitter = Math.random() * 100;
+        await sleep(delay + jitter);
+      }
+    }
+  }
+
+  throw lastError;
 };
 
-const getActiveWeavingModel = () => {
-  return DEFAULT_NVIDIA_WEAVING_MODEL;
+const getActiveChatModel = () => {
+  return DEFAULT_NVIDIA_CHAT_MODEL;
 };
 
 const getActiveRelationshipModel = () => {
@@ -433,6 +431,7 @@ type NvidiaChatCompletionOptions = {
   temperature: number;
   model?: string;
   useChainOfThought?: boolean;
+  responseMimeType?: "application/json" | "text/plain";
 };
 
 const isNemotronModel = (model?: string) => {
@@ -474,6 +473,7 @@ const nvidiaChatCompletion = async ({
   temperature,
   model = DEFAULT_NVIDIA_MODEL,
   useChainOfThought,
+  responseMimeType,
 }: NvidiaChatCompletionOptions): Promise<string> => {
   const enableThinking =
     useChainOfThought ?? (isNemotronModel(model) ? true : NVIDIA_THINKING_MODE);
@@ -486,18 +486,22 @@ const nvidiaChatCompletion = async ({
           ? { enable_thinking: true }
           : {};
 
-    const completion = await getNvidiaClient().chat.completions.create({
-      model,
-      messages,
-      temperature,
-      top_p: 0.95,
-      max_tokens: maxTokens,
-      stream: false,
-      response_format: { type: "json_object" },
-      ...(Object.keys(thinkingConfig).length > 0
-        ? { chat_template_kwargs: thinkingConfig }
-        : {}),
-    } as any);
+    const completion = await retryWithBackoff(async () => {
+      return getNvidiaClient().chat.completions.create({
+        model,
+        messages,
+        temperature,
+        top_p: 0.95,
+        max_tokens: maxTokens,
+        stream: false,
+        response_format: responseMimeType
+          ? { type: responseMimeType === "text/plain" ? "text" : "json_object" }
+          : { type: "json_object" },
+        ...(Object.keys(thinkingConfig).length > 0
+          ? { chat_template_kwargs: thinkingConfig }
+          : {}),
+      } as any);
+    });
 
     const content = completion.choices?.[0]?.message?.content;
     return extractNvidiaSdkText(content);
@@ -520,8 +524,9 @@ const nvidiaChatCompletion = async ({
 
 const chatWithNvidia = async ({
   messages,
-  maxTokens = 512,
+  maxTokens = 1024,
   temperature = 0.7,
+  responseMimeType,
 }: GroqChatOptions) => {
   const nvidiaMessages: NvidiaMessage[] = messages.filter(
     (message) => message.content.trim().length > 0,
@@ -536,6 +541,7 @@ const chatWithNvidia = async ({
     maxTokens,
     temperature,
     model: getActiveChatModel(),
+    responseMimeType,
   });
 };
 
@@ -555,7 +561,7 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
           "Generate one motivational quote about finding clarity through messy thinking.",
       },
     ],
-    maxTokens: 96,
+    maxTokens: 128,
     temperature: 0.85,
   });
 
@@ -568,131 +574,6 @@ const generateSuikaMotivationalQuoteWithNvidia = async (): Promise<{
   return { quote: candidate as string, source: "ai" as const };
 };
 
-const generateSuikaWeavingSuggestionsWithNvidia = async (
-  inputs: WeavingSuggestionInput[],
-): Promise<WeavingSuggestion[]> => {
-  const systemInstruction = `You are a litigation partner reviewing associate work product for legal case analysis.
-
-DIAGNOSTIC CATEGORIES (kind):
-- MISSING_ELEMENT: Required legal element has no supporting evidence fragment
-- AUTHORITY_GAP: Legal conclusion lacks binding/controlling authority
-- JURISDICTIONAL_DEFECT: Missing venue, standing, ripeness, or subject-matter jurisdiction facts
-- PROCEDURAL_BAR: Statute of limitations, exhaustion, waiver, or preclusion not addressed
-- STANDARD_OF_REVIEW: Missing articulation of applicable appellate standard
-- FACTUAL_DISPUTE: Material fact genuinely contested requiring trial
-- AFFIRMATIVE_DEFENSE: Potential defense not pleaded or supported
-- DAMAGES_SPECIFICATION: Damage model or causation chain incomplete
-- MISSING_QUESTION: Node has ideas/observations but no explicit guiding question
-- EVIDENCE_GAP: Node has claims but lacks concrete evidence
-
-For each suggestion, recommend the SPECIFIC fragment type to add (QUESTION/OBSERVATION/CONSTRAINS/CONCLUSION/LEGAL_ELEMENT/BINDING_AUTHORITY/PERSUASIVE_AUTHORITY/PROCEDURAL_FACT/EVIDENTIARY_FACT) and cite the governing rule/case in rationale.
-
-Return only a JSON array. Use only node titles and fragment ids from input.`;
-
-  const text = await nvidiaChatCompletion({
-    messages: [
-      { role: "system", content: systemInstruction },
-      {
-        role: "user",
-        content: `Analyze nodes and generate up to 8 suggestions:\n${JSON.stringify(inputs, null, 2)}\n\nReturn JSON array entries with keys: kind, nodeTitle, focusFragmentId, reason, recommendation, rationale, strength.`,
-      },
-    ],
-    maxTokens: 2048,
-    temperature: 0.2,
-    model: getActiveWeavingModel(),
-  });
-
-  const parsed = extractJsonArray(text);
-
-  if (!parsed) {
-    return fallbackWeavingSuggestions(inputs);
-  }
-
-  const nodeByTitle = new Map(
-    inputs.map((item) => [item.title.trim().toLowerCase(), item]),
-  );
-
-  const normalized = parsed
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-
-      const record = entry as {
-        kind?: unknown;
-        nodeTitle?: unknown;
-        focusFragmentId?: unknown;
-        reason?: unknown;
-        recommendation?: unknown;
-        rationale?: unknown;
-        strength?: unknown;
-      };
-
-      const validKinds = [
-        "MISSING_QUESTION",
-        "EVIDENCE_GAP",
-        "MISSING_ELEMENT",
-        "AUTHORITY_GAP",
-        "JURISDICTIONAL_DEFECT",
-        "PROCEDURAL_BAR",
-        "STANDARD_OF_REVIEW",
-        "FACTUAL_DISPUTE",
-        "AFFIRMATIVE_DEFENSE",
-        "DAMAGES_SPECIFICATION",
-      ];
-
-      if (
-        !validKinds.includes(record.kind as string) ||
-        typeof record.nodeTitle !== "string" ||
-        typeof record.focusFragmentId !== "string" ||
-        typeof record.reason !== "string" ||
-        typeof record.recommendation !== "string" ||
-        typeof record.rationale !== "string"
-      ) {
-        return null;
-      }
-
-      return {
-        fromTitle: record.nodeTitle.trim(),
-        toTitle: record.kind as WeavingSuggestionKind,
-        reason: record.reason.trim().slice(0, 180),
-        strength: normalizeStrength(String(record.strength ?? "MEDIUM")),
-        focusFragmentId: record.focusFragmentId.trim(),
-        recommendation: record.recommendation.trim().slice(0, 220),
-        rationale: record.rationale.trim().slice(0, 180),
-      } satisfies WeavingSuggestion;
-    })
-    .filter((item): item is WeavingSuggestion => {
-      if (!item) {
-        return false;
-      }
-
-      const node = nodeByTitle.get(item.fromTitle.toLowerCase());
-      if (!node) {
-        return false;
-      }
-
-      return node.fragments.some(
-        (fragment) => fragment.id === item.focusFragmentId,
-      );
-    });
-
-  if (normalized.length === 0) {
-    return fallbackWeavingSuggestions(inputs);
-  }
-
-  const deduped = Array.from(
-    new Map(
-      normalized.map((item) => [
-        `${item.fromTitle.toLowerCase()}::${item.toTitle}::${item.recommendation.toLowerCase()}`,
-        item,
-      ]),
-    ).values(),
-  );
-
-  return deduped.slice(0, 8);
-};
-
 const analyzeFragmentRelationshipsWithNvidia = async (
   fragments: Array<{
     id: string;
@@ -700,9 +581,24 @@ const analyzeFragmentRelationshipsWithNvidia = async (
     content: string;
   }>,
   datasetCtx?: DatasetContext,
+  options?: AnalyzeRelationshipOptions,
 ): Promise<RelationshipRecord[]> => {
+  const maxFragmentContentChars = Math.max(
+    150,
+    options?.maxFragmentContentChars ?? 600,
+  );
+  const maxOutputTokens = Math.max(512, options?.maxOutputTokens ?? 3072);
+
+  const truncatedFragments = fragments.map((f) => ({
+    ...f,
+    content:
+      f.content.length > maxFragmentContentChars
+        ? f.content.slice(0, maxFragmentContentChars) + "..."
+        : f.content,
+  }));
+
   const datasetBlock = datasetCtx && datasetCtx.laws.length > 0
-    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET (use these to cite specific authorities in your rationale):\n${formatDatasetContext(datasetCtx)}\n\nWhen a relationship involves a legal principle, cite the specific law from the dataset above by its number (e.g., "[1]") in the rationale. If no dataset law applies, cite the principle from the fragment content itself.`
+    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET:\n${formatDatasetContext(datasetCtx)}\n\nFor EACH relationship, you MUST identify specific laws from the dataset that support the connection. Include them in the "legalCitations" array with title, citation, and relevance. Cite laws by number (e.g., "[1]") in the rationale AND list them in legalCitations.`
     : "";
 
   const systemInstruction = `You are a senior legal analyst specializing in case law reasoning and statutory interpretation.
@@ -720,22 +616,35 @@ LEGAL REASONING RULES:
 - Flag missing elements: standing, ripeness, exhaustion, statutes of limitations
 - Note when fragments represent: elements of a claim, affirmative defenses, standards of review
 - Rationale MUST cite specific legal principle, statute, or case name from source
-- When a Canadian law from the dataset applies, cite it by reference number (e.g., "[1]") in the rationale
-- No weak analogical links without explicit doctrinal basis${datasetBlock}
+- When a Canadian law from the dataset applies, cite it by reference number (e.g., "[1]") in the rationale AND include it in legalCitations
+- No weak analogical links without explicit doctrinal basis
+- Each relationship MUST have at least 1-2 supporting legal citations from the dataset when available${datasetBlock}
 
-Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
+Return ONLY JSON array with this shape:
+[{
+  "source_id": "fragment_id",
+  "target_id": "fragment_id",
+  "relationship": "CONTRADICTS|CLARIFIES|RESOLVES",
+  "rationale": "Detailed legal reasoning citing specific laws by number",
+  "legalCitations": [
+    { "title": "Full case/statute name", "citation": "Citation (e.g., 2023 SCC 15, R.S.C. 1985, c. C-46 s. 2)", "relevance": "How this law supports the connection" }
+  ]
+}]
+
+IMPORTANT: Each connection MUST include the "legalCitations" array with real, specific laws from the dataset. Do not return empty arrays.`;
 
   const text = await nvidiaChatCompletion({
     messages: [
       { role: "system", content: systemInstruction },
       {
         role: "user",
-        content: `Analyze fragments and return relationships:\n${JSON.stringify(fragments, null, 2)}`,
+        content: `Analyze fragments and return relationships with supporting legal citations:\n${JSON.stringify(truncatedFragments, null, 2)}`,
       },
     ],
-    maxTokens: 4096,
+    maxTokens: maxOutputTokens,
     temperature: 0,
     model: getActiveRelationshipModel(),
+    useChainOfThought: true,
   });
 
   const parsed = extractJsonArray(text);
@@ -755,6 +664,7 @@ Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
         target_id?: unknown;
         relationship?: unknown;
         rationale?: unknown;
+        legalCitations?: unknown;
       };
 
       if (
@@ -776,12 +686,27 @@ Return ONLY JSON array: {source_id, target_id, relationship, rationale}.`;
         return null;
       }
 
+      const legalCitations = Array.isArray(record.legalCitations)
+        ? record.legalCitations
+            .map((lc) => {
+              if (!lc || typeof lc !== "object") return null;
+              const r = lc as Record<string, unknown>;
+              const title = typeof r.title === "string" ? r.title.trim() : "";
+              const citation = typeof r.citation === "string" ? r.citation.trim() : "";
+              const relevance = typeof r.relevance === "string" ? r.relevance.trim() : "";
+              if (!title) return null;
+              return { title, citation, relevance };
+            })
+            .filter((lc): lc is { title: string; citation: string; relevance: string } => Boolean(lc))
+        : [];
+
       return {
         source_id: record.source_id.trim(),
         target_id: record.target_id.trim(),
         relationship,
         rationale: record.rationale.trim(),
-      } satisfies RelationshipRecord;
+        legalCitations: legalCitations.length > 0 ? legalCitations : undefined,
+      } as RelationshipRecord;
     })
     .filter((item): item is RelationshipRecord => Boolean(item));
 };
@@ -790,6 +715,14 @@ const generateProblemSpaceConclusionWithNvidia = async (
   input: ClarityConnectionInput[],
   datasetCtx?: DatasetContext,
   defendingSide?: DefendingSide,
+  connections?: Array<{
+    fromNodeId: string;
+    toNodeId: string;
+    fromFragmentId: string;
+    toFragmentId: string;
+    reason: string;
+    strength: string;
+  }>,
 ): Promise<ProblemSpaceConclusion> => {
   const payload = input
     .map((node) => ({
@@ -804,95 +737,157 @@ const generateProblemSpaceConclusionWithNvidia = async (
     .filter((node) => node.fragments.length > 0);
 
   const datasetBlock = datasetCtx && datasetCtx.laws.length > 0
-    ? `\n\nREFERENCE CANADIAN LAWS FROM DATASET:\n${formatDatasetContext(datasetCtx)}\n\nYou MUST use these laws to support outcomes, arguments, and rebuttals. Cite laws by number (e.g., "[1]") throughout.`
+    ? `\n\nAPPLICABLE CANADIAN LAWS (cite by number [1], [2], etc.):\n${formatDatasetContext(datasetCtx)}`
     : "";
 
-  const sideLabel = defendingSide === "DEFENDANT"
-    ? "DEFENDANT (you are defending the accused/respondent)"
-    : defendingSide === "PLAINTIFF"
-      ? "PLAINTIFF/PROSECUTOR (you are bringing the claim/complaint)"
-      : null;
+  let connectionsBlock = "";
+  if (connections && connections.length > 0) {
+    const nodeTitleMap = new Map(input.map((n) => [n.nodeId, n.nodeTitle]));
+    const fragmentMap = new Map(
+      input.flatMap((n) => n.fragments.map((f) => [f.id, { ...f, nodeTitle: n.nodeTitle }])),
+    );
 
-  const argumentBlock = sideLabel
-    ? `
-ARGUMENT STRATEGY (from the perspective of the ${sideLabel}):
+    const connectionLines = connections.map((c) => {
+      const fromFrag = fragmentMap.get(c.fromFragmentId);
+      const toFrag = fragmentMap.get(c.toFragmentId);
+      const fromNode = nodeTitleMap.get(c.fromNodeId) ?? "Unknown";
+      const toNode = nodeTitleMap.get(c.toNodeId) ?? "Unknown";
+      const fromContent = fromFrag?.content.slice(0, 120) ?? "N/A";
+      const toContent = toFrag?.content.slice(0, 120) ?? "N/A";
+      const fromType = fromFrag?.type ?? "UNKNOWN";
+      const toType = toFrag?.type ?? "UNKNOWN";
+      return `[${c.strength}] ${fromNode} (${fromType}) -> ${toNode} (${toType}): ${c.reason.slice(0, 150)}
+  Source: "${fromContent}"
+  Target: "${toContent}"`;
+    });
 
-1. "ourArguments" (array): Your strongest arguments.
-   Each: { argument: string, strength: "STRONG"|"MEDIUM"|"WEAK", supportingAuthority?: string, keyEvidence?: string }
+    connectionsBlock = `\n\nFRAGMENT CONNECTIONS FROM CLARITY GRAPH (${connections.length} connections):
+These show how fragments across nodes are logically related. Use these connections to:
+1. Identify which fragments support or contradict each other
+2. Build arguments that leverage connected evidence
+3. Find weaknesses where connected fragments create vulnerabilities
 
-2. "opponentArguments" (array): The opposing side's best arguments against you.
-   Each: { argument: string, strength: "STRONG"|"MEDIUM"|"WEAK", counterRebuttal: string, rebuttalAuthority?: string }
+${connectionLines.join("\n\n")}`;
+  }
 
-3. "rebuttalStrategy" (array): General strategic advice for countering the opponent.
+  const isPlaintiff = defendingSide === "PLAINTIFF";
 
-RULES:
-- Each argument MUST be grounded in the fragments or applicable law
-- Opponent arguments must be the BEST case against you, not straw men
-- Rebuttals must be specific and cite controlling authority
-- "defendingSide" must be returned as "${defendingSide}"` : "";
+  const sideInstructions = isPlaintiff
+    ? `You are analyzing this case from the PLAINTIFF/PROSECUTOR perspective.
+The plaintiff is the party bringing the claim or complaint. They bear the burden of proof.
+Your job is to find the STRONGEST path to victory for the plaintiff.
+
+PLAINTIFF'S GOAL: Prove the case by establishing all required legal elements.
+PLAINTIFF'S STRENGTHS: Look for evidence fragments that support each element of the claim.
+PLAINTIFF'S RISKS: Identify gaps in evidence, missing elements, procedural bars, and statute of limitations issues.
+PLAINTIFF'S STRATEGY: Build the strongest possible case using observations, evidence, and ideas.
+
+When building "ourArguments": These are the PLAINTIFF's strongest arguments to prove the claim.
+When building "opponentArguments": These are the DEFENDANT's best defenses and counterarguments.
+When building "rebuttalStrategy": How the PLAINTIFF can counter the defendant's defenses.`
+    : defendingSide === "DEFENDANT"
+    ? `You are analyzing this case from the DEFENDANT's perspective.
+The defendant is the party responding to the claim. They have the burden of raising defenses.
+Your job is to find the STRONGEST defenses and ways to defeat the plaintiff's case.
+
+DEFENDANT'S GOAL: Defeat the plaintiff's claim by raising defenses, challenging elements, and exploiting weaknesses.
+DEFENDANT'S STRENGTHS: Look for missing elements, insufficient evidence, procedural defects, and applicable defenses.
+DEFENDANT'S RISKS: Identify the plaintiff's strongest arguments and evidence that could prevail.
+DEFENDANT'S STRATEGY: Challenge every element, raise affirmative defenses, and exploit gaps.
+
+When building "ourArguments": These are the DEFENDANT's strongest defenses to defeat the claim.
+When building "opponentArguments": These are the PLAINTIFF's best arguments to prove the claim.
+When building "rebuttalStrategy": How the DEFENDANT can counter the plaintiff's arguments.`
+    : `Analyze this case from a neutral perspective, considering both sides.
+
+When building "ourArguments": Present the strongest arguments for the party you are analyzing.
+When building "opponentArguments": Present the opposing party's best counterarguments.
+When building "rebuttalStrategy": How to counter the opponent's arguments.`;
+
+  const fragmentAnalysisInstructions = `For each fragment provided in the data:
+- QUESTION fragments: Identify the legal elements that must be answered
+- IDEA fragments: Evaluate whether they support or weaken the case
+- OBSERVATION fragments: Use as factual evidence to support arguments
+- CONSTRAINS fragments: Apply as limitations, defenses, or procedural bars
+- CONCLUSION fragments: Assess strength and validity
+
+Reference specific fragment types and content in your analysis.`;
 
   const text = await nvidiaChatCompletion({
     messages: [
       {
         role: "system",
-        content: `You are a senior legal strategist analyzing a legal problem space.
+        content: `You are a senior legal strategist. Analyze the case data and provide a comprehensive legal analysis.
 
-TASK: Determine the best possible outcomes AND build an argument strategy for the ${sideLabel ?? "relevant party"}.
+${sideInstructions}
 
-FRAMEWORK:
-1. Identify the controlling legal standard (statute, regulation, precedent)
-2. Map each QUESTION fragment to required legal elements
-3. Evaluate EVIDENCE fragments against each element
-4. Apply CONSTRAINTS (jurisdictional, procedural, statutory)
-5. Cross-reference the Canadian law dataset to find applicable legislation, regulations, and case law
-6. Determine which outcomes are most favorable AND achievable
-7. Build argument strategy from the ${sideLabel ?? "relevant party"} perspective
-8. Anticipate and counter the opposing side's strongest arguments${datasetBlock}
-${argumentBlock}
+${datasetBlock}
+${connectionsBlock}
 
-OUTPUT JSON:
+ANALYSIS STEPS:
+1. Review all fragments carefully - each type provides different legal information
+2. Review the fragment connections above to understand how pieces of the case relate
+3. Identify the key legal issues from QUESTION fragments
+4. Use OBSERVATION fragments as factual support
+5. Apply CONSTRAINS fragments as limitations or defenses
+6. Reference applicable laws from the dataset
+7. Use the fragment connections to build stronger, more interconnected arguments
+
+IMPORTANT: You MUST return at least 2 "ourArguments" and 2 "opponentArguments". Even with limited data, construct arguments based on what the fragments and connections suggest about the case.
+
+Return this JSON structure:
 {
-  "summary": "Brief overview of the case posture and legal landscape",
-  "defendingSide": "${defendingSide ?? ""}",
-  "ourArguments": [{ "argument": "...", "strength": "STRONG|MEDIUM|WEAK", "supportingAuthority": "...", "keyEvidence": "..." }],
-  "opponentArguments": [{ "argument": "...", "strength": "STRONG|MEDIUM|WEAK", "counterRebuttal": "...", "rebuttalAuthority": "..." }],
-  "rebuttalStrategy": ["..."],
+  "summary": "2-3 sentence overview from your side's perspective",
+  "defendingSide": "${defendingSide ?? "PLAINTIFF"}",
+  "ourArguments": [
+    {"argument": "Strongest argument", "strength": "STRONG|MEDIUM|WEAK", "supportingAuthority": "Cite specific law or fragment", "keyEvidence": "Which fragment supports this"}
+  ],
+  "opponentArguments": [
+    {"argument": "Opponent's best argument against you", "strength": "STRONG|MEDIUM|WEAK", "counterRebuttal": "How to counter it", "rebuttalAuthority": "Supporting law or precedent"}
+  ],
+  "rebuttalStrategy": ["Strategic advice for countering opponent"],
   "bestOutcomes": [
     {
-      "outcome": "Description of best possible result",
-      "likelihood": "HIGH | MEDIUM | LOW",
-      "reasoning": "Legal reasoning citing specific laws by number",
-      "requiredElements": ["..."],
-      "supportingLaws": [{ "title": "...", "citation": "...", "url": null, "relevance": "...", "documentType": "CASE_LAW|LEGISLATION|REGULATION" }],
-      "keyFactors": ["..."],
-      "risks": ["..."],
-      "nextSteps": ["..."]
+      "outcome": "Best result from your side",
+      "likelihood": "HIGH|MEDIUM|LOW",
+      "reasoning": "Legal reasoning with citations",
+      "requiredElements": ["Elements needed"],
+      "supportingLaws": [{"title": "Law name", "citation": "Citation", "url": null, "relevance": "How it helps", "documentType": "CASE_LAW|LEGISLATION|REGULATION"}],
+      "keyFactors": ["Favorable factors"],
+      "risks": ["Risks"],
+      "nextSteps": ["Next actions"]
     }
   ],
-  "controllingAuthority": [{ "citation": "...", "jurisdiction": "...", "weight": "binding|persuasive" }],
-  "elementAnalysis": [{ "element": "...", "satisfied": true, "supportingFragments": [], "gaps": [] }],
-  "proceduralPosture": "...",
-  "standardOfReview": "..."
+  "controllingAuthority": [{"citation": "Citation", "jurisdiction": "Jurisdiction", "weight": "binding|persuasive"}],
+  "elementAnalysis": [{"element": "Legal element", "satisfied": true, "supportingFragments": [], "gaps": []}],
+  "proceduralPosture": "Current status",
+  "standardOfReview": "Standard applied",
+  "confidence": "HIGH|MEDIUM|LOW",
+  "basedOnQuestionCount": 0,
+  "totalQuestionCount": 0
 }
 
 RULES:
-- Generate 2-4 ranked outcomes from BEST to WORST
-- Each outcome MUST cite specific laws from the dataset by number
-- Arguments must be concrete and actionable
-- Include controlling authority and element analysis${datasetBlock}`,
+- Generate 2-4 outcomes ranked best to worst
+- Arguments MUST reference the fragments and connections provided
+- Use fragment connections to identify supporting evidence chains and contradictions
+- Even with few fragments, construct plausible legal arguments based on the case type
+- Return ONLY valid JSON, no markdown or explanation`,
       },
       {
         role: "user",
-        content: `Analyze this problem space. Determine best outcomes and build argument strategy.
-${sideLabel ? `The user represents the ${sideLabel}. Build arguments from this perspective.` : ""}
-Return JSON with keys: summary, defendingSide, ourArguments, opponentArguments, rebuttalStrategy, bestOutcomes, confidence, basedOnQuestionCount, totalQuestionCount, controllingAuthority, elementAnalysis, proceduralPosture, standardOfReview.
-Data:
-${JSON.stringify(payload, null, 2)}`,
+        content: `Analyze this case from the ${isPlaintiff ? "PLAINTIFF" : "DEFENDANT"}'s perspective.
+
+FRAGMENT DATA:
+${JSON.stringify(payload, null, 2)}
+
+Return ONLY valid JSON with all required fields.`,
       },
     ],
     maxTokens: 4096,
-    temperature: 0.0,
+    temperature: 0.1,
     model: getActiveConclusionModel(),
+    useChainOfThought: true,
   });
 
   const parsed = extractJsonObject(text);
@@ -1085,7 +1080,19 @@ const extractJsonArray = (text: string): unknown[] | null => {
       return parsed;
     }
   } catch {
-    // SDK should honor response schema, this is a small recovery path.
+    // Try to recover from markdown code blocks
+  }
+
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1].trim());
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Continue to fallback
+    }
   }
 
   const start = trimmed.indexOf("[");
@@ -1112,7 +1119,19 @@ const extractJsonObject = (text: string): Record<string, unknown> | null => {
       return parsed as Record<string, unknown>;
     }
   } catch {
-    // Recover from accidental prose wrappers.
+    // Try to recover from markdown code blocks
+  }
+
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1].trim());
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Continue to fallback
+    }
   }
 
   const start = trimmed.indexOf("{");
@@ -1293,6 +1312,7 @@ const normalizeBullets = (value: unknown, maxItems: number) => {
 
 const fallbackProblemSpaceConclusion = (
   input: ClarityConnectionInput[],
+  defendingSide?: DefendingSide,
 ): ProblemSpaceConclusion => {
   const allFragments = input.flatMap((node) =>
     node.fragments.map((fragment) => ({
@@ -1304,27 +1324,36 @@ const fallbackProblemSpaceConclusion = (
   const questions = allFragments.filter(
     (fragment) => fragment.type === "QUESTION",
   );
-  const conclusionCandidates = allFragments.filter(
+  const observations = allFragments.filter(
+    (fragment) => fragment.type === "OBSERVATION",
+  );
+  const constraints = allFragments.filter(
+    (fragment) => fragment.type === "CONSTRAINS",
+  );
+  const conclusions = allFragments.filter(
     (fragment) => fragment.type === "CONCLUSION",
   );
+  const ideas = allFragments.filter(
+    (fragment) => fragment.type === "IDEA",
+  );
 
-  if (questions.length === 0) {
+  if (questions.length === 0 && allFragments.length === 0) {
     return {
       summary:
-        "There is not enough explicit question framing yet to determine best outcomes confidently.",
+        "There is not enough information yet to provide a meaningful legal analysis. Add fragments describing the legal issue, facts, and constraints.",
       bestOutcomes: [
         {
-          outcome: "Awaiting sufficient question framing to determine viable outcomes",
+          outcome: "Awaiting sufficient case information",
           likelihood: "LOW",
-          reasoning: "A strong outcome analysis requires clear question fragments. This space currently lacks explicit question anchors to anchor legal analysis.",
+          reasoning: "A meaningful analysis requires fragments describing the legal issue, relevant facts, and any constraints.",
           requiredElements: [],
           supportingLaws: [],
           keyFactors: [],
-          risks: ["Insufficient question framing", "No clear legal issue defined"],
+          risks: ["No case information provided"],
           nextSteps: [
-            "Add at least 2-3 focused question fragments across your nodes.",
-            "Pair each question with at least one observation or constraint.",
-            "Re-run outcome analysis after adding question fragments.",
+            "Add QUESTION fragments describing the legal issues.",
+            "Add OBSERVATION fragments with case facts.",
+            "Add CONSTRAINS fragments for any legal limitations.",
           ],
         },
       ],
@@ -1334,66 +1363,136 @@ const fallbackProblemSpaceConclusion = (
     };
   }
 
-  const bestCandidate =
-    conclusionCandidates
-      .map((candidate) => {
-        const score = questions.reduce((total, question) => {
-          return total + tokenOverlapScore(candidate.content, question.content);
-        }, 0);
+  const isPlaintiff = defendingSide === "PLAINTIFF";
+  const sideLabel = isPlaintiff ? "Plaintiff" : defendingSide === "DEFENDANT" ? "Defendant" : "your side";
 
-        const coveredQuestions = questions.filter((question) => {
-          return tokenOverlapScore(candidate.content, question.content) >= 0.12;
-        }).length;
-
-        return {
-          candidate,
-          score,
-          coveredQuestions,
-        };
-      })
-      .sort((a, b) => {
-        if (b.coveredQuestions !== a.coveredQuestions) {
-          return b.coveredQuestions - a.coveredQuestions;
-        }
-
-        return b.score - a.score;
-      })[0] ?? null;
-
-  const pickedOutcome =
-    bestCandidate?.candidate.content.trim() ||
-    allFragments
-      .find((fragment) => fragment.type !== "QUESTION")
-      ?.content.trim() ||
-    "The available evidence suggests narrowing this problem into one decisive path and validating it quickly.";
-
-  const basedOnQuestionCount =
-    bestCandidate?.coveredQuestions ?? Math.min(1, questions.length);
+  const basedOnQuestionCount = questions.length;
   const confidence: ProblemSpaceConclusion["confidence"] =
-    basedOnQuestionCount >= Math.max(2, Math.ceil(questions.length * 0.6))
-      ? "MEDIUM"
-      : "LOW";
+    basedOnQuestionCount >= 2 ? "MEDIUM" : "LOW";
+
+  const summaryParts: string[] = [];
+  if (questions.length > 0) {
+    summaryParts.push(`The case involves ${questions.length} legal question(s): ${questions.slice(0, 2).map(q => q.content.slice(0, 60)).join("; ")}`);
+  }
+  if (observations.length > 0) {
+    summaryParts.push(`There ${observations.length === 1 ? "is" : "are"} ${observations.length} factual observation(s) available`);
+  }
+  if (constraints.length > 0) {
+    summaryParts.push(`with ${constraints.length} constraint(s) to consider`);
+  }
+
+  const summary = summaryParts.length > 0
+    ? summaryParts.join(". ") + "."
+    : `Based on ${allFragments.length} fragment(s), the following analysis is provided from the ${sideLabel}'s perspective.`;
+
+  const ourArguments: ProblemSpaceConclusion["ourArguments"] = [];
+  const opponentArguments: ProblemSpaceConclusion["opponentArguments"] = [];
+
+  if (isPlaintiff) {
+    questions.forEach((q) => {
+      ourArguments.push({
+        argument: `Establish the element: ${q.content.slice(0, 150)}`,
+        strength: observations.length > 0 ? "MEDIUM" : "WEAK",
+        keyEvidence: observations.length > 0 ? observations[0].content.slice(0, 100) : undefined,
+      });
+    });
+    constraints.forEach((c) => {
+      opponentArguments.push({
+        argument: `Defendant may argue: ${c.content.slice(0, 150)}`,
+        strength: "MEDIUM",
+        counterRebuttal: `Challenge the applicability of this constraint to the specific facts of this case.`,
+        rebuttalAuthority: undefined,
+      });
+    });
+    if (opponentArguments.length === 0 && questions.length > 0) {
+      opponentArguments.push({
+        argument: "Defendant will challenge whether all legal elements are fully satisfied",
+        strength: "MEDIUM",
+        counterRebuttal: "Demonstrate that the available evidence, while limited, establishes a prima facie case",
+        rebuttalAuthority: undefined,
+      });
+    }
+  } else {
+    questions.forEach((q) => {
+      opponentArguments.push({
+        argument: `Plaintiff must prove: ${q.content.slice(0, 150)}`,
+        strength: "MEDIUM",
+        counterRebuttal: observations.length > 0
+          ? `Challenge whether the evidence (${observations[0].content.slice(0, 60)}...) is sufficient`
+          : "Challenge sufficiency of evidence on this element",
+        rebuttalAuthority: undefined,
+      });
+    });
+    constraints.forEach((c) => {
+      ourArguments.push({
+        argument: `Defense based on constraint: ${c.content.slice(0, 150)}`,
+        strength: "STRONG",
+        keyEvidence: c.content.slice(0, 100),
+        supportingAuthority: undefined,
+      });
+    });
+    if (ourArguments.length === 0) {
+      ourArguments.push({
+        argument: "Challenge plaintiff's burden of proof on each element",
+        strength: "MEDIUM",
+        keyEvidence: observations.length > 0 ? `Factual disputes exist: ${observations[0].content.slice(0, 80)}` : undefined,
+        supportingAuthority: undefined,
+      });
+    }
+  }
+
+  const bestOutcome = conclusions.length > 0
+    ? conclusions[0].content.slice(0, 300)
+    : ideas.length > 0
+      ? ideas[0].content.slice(0, 300)
+      : observations.length > 0
+        ? observations[0].content.slice(0, 300)
+        : questions.length > 0
+          ? `Resolution of: ${questions[0].content.slice(0, 200)}`
+          : `The ${sideLabel} should pursue the strongest available legal theory`;
 
   return {
-    summary: `Based on ${basedOnQuestionCount} of ${questions.length} question fragments, the following outcome has the strongest support.`,
+    summary,
+    defendingSide,
+    ourArguments: ourArguments.length > 0 ? ourArguments : undefined,
+    opponentArguments: opponentArguments.length > 0 ? opponentArguments : undefined,
+    rebuttalStrategy: [
+      "Strengthen your position by adding more specific factual fragments",
+      "Add more IDEA fragments to develop your legal theories",
+      "Re-run analysis after adding more evidence and observations",
+    ],
     bestOutcomes: [
       {
-        outcome: pickedOutcome,
+        outcome: bestOutcome,
         likelihood: confidence === "MEDIUM" ? "MEDIUM" : "LOW",
-        reasoning: `This outcome best aligns with ${basedOnQuestionCount} of ${questions.length} explicit questions by semantic overlap and fit with available constraints/observations. Add more evidence and legal authorities to strengthen this analysis.`,
+        reasoning: `Based on ${basedOnQuestionCount} question(s), ${observations.length} observation(s), and ${constraints.length} constraint(s). This analysis is generated from available fragments. Add more evidence for a more detailed analysis.`,
         requiredElements: questions.map((q) => q.content.slice(0, 120)),
         supportingLaws: [],
-        keyFactors: conclusionCandidates.slice(0, 3).map((c) => c.content.slice(0, 120)),
-        risks: ["Limited evidence base", "Few controlling authorities cited"],
+        keyFactors: [
+          ...observations.slice(0, 3).map((o) => o.content.slice(0, 120)),
+          ...conclusions.slice(0, 2).map((c) => c.content.slice(0, 120)),
+        ],
+        risks: [
+          ...constraints.slice(0, 3).map((c) => c.content.slice(0, 120)),
+          ...(constraints.length === 0 ? ["No constraints identified - add constraint fragments"] : []),
+        ],
         nextSteps: [
-          "Add supporting observations and legal authorities.",
-          "Re-run outcome analysis after updating fragments.",
-          "Cross-reference with CanLII dataset for applicable laws.",
+          "Add more observation and evidence fragments",
+          "Add IDEA fragments for stronger arguments",
+          "Re-run analysis after updating fragments",
         ],
       },
     ],
     confidence,
     basedOnQuestionCount,
     totalQuestionCount: questions.length,
+    controllingAuthority: [],
+    elementAnalysis: questions.map((q) => ({
+          element: q.content.slice(0, 150),
+          satisfied: observations.length > 0,
+          supportingFragments: observations.slice(0, 2).map((o) => o.content.slice(0, 80)),
+          gaps: observations.length === 0 ? ["No supporting evidence provided"] : [],
+        })),
   };
 };
 
@@ -1641,60 +1740,6 @@ const selectHighSignalEdges = <T extends ClarityConnectionSuggestion>(
   return selected;
 };
 
-const fallbackWeavingSuggestions = (
-  inputs: WeavingSuggestionInput[],
-): WeavingSuggestion[] => {
-  return inputs
-    .flatMap((item) => {
-      const first = item.fragments[0];
-      if (!first) {
-        return [];
-      }
-
-      const hasQuestion = item.fragments.some((f) => f.type === "QUESTION");
-      const hasConclusionOrIdea = item.fragments.some(
-        (f) => f.type === "CONCLUSION" || f.type === "IDEA",
-      );
-      const hasObservation = item.fragments.some(
-        (f) => f.type === "OBSERVATION",
-      );
-
-      const suggestions: WeavingSuggestion[] = [];
-
-      if (!hasQuestion) {
-        suggestions.push({
-          fromTitle: item.title,
-          toTitle: "MISSING_QUESTION",
-          reason:
-            "This node has ideas/observations but no explicit guiding question.",
-          strength: "MEDIUM",
-          focusFragmentId: first.id,
-          recommendation:
-            "What is the main uncertainty this node is trying to resolve?",
-          rationale:
-            "A clear question helps evaluate future decisions and evidence.",
-        });
-      }
-
-      if (hasConclusionOrIdea && !hasObservation) {
-        suggestions.push({
-          fromTitle: item.title,
-          toTitle: "EVIDENCE_GAP",
-          reason: "This node has claims but lacks concrete evidence.",
-          strength: "STRONG",
-          focusFragmentId: first.id,
-          recommendation:
-            "Add one concrete observation, data point, or example supporting this claim.",
-          rationale:
-            "Evidence reduces premature certainty and improves reliability.",
-        });
-      }
-
-      return suggestions;
-    })
-    .slice(0, 8);
-};
-
 const fallbackClarityConnections = (
   input: ClarityConnectionInput[],
 ): ClarityConnectionSuggestion[] => {
@@ -1840,34 +1885,26 @@ export const generateSuikaMotivationalQuote = async () => {
   }
 };
 
-export const generateSuikaWeavingSuggestions = async (
-  inputs: WeavingSuggestionInput[],
-): Promise<WeavingSuggestion[]> => {
-  if (inputs.length === 0) {
-    return [];
-  }
-
-  try {
-    return await generateSuikaWeavingSuggestionsWithNvidia(inputs);
-  } catch {
-    return fallbackWeavingSuggestions(inputs);
-  }
-};
-
 export const analyzeFragmentRelationships = async (
   fragments: Array<{
     id: string;
     type: FragmentType;
     content: string;
   }>,
+  options?: AnalyzeRelationshipOptions,
 ): Promise<RelationshipRecord[]> => {
   if (fragments.length < 2) {
     return [];
   }
 
-  await ensureDatasetFresh();
-  const datasetCtx = await searchCanLIIDataset(fragments);
-  return analyzeFragmentRelationshipsWithNvidia(fragments, datasetCtx);
+  let datasetCtx: DatasetContext | undefined;
+
+  if (options?.includeDatasetContext !== false) {
+    await ensureDatasetFresh();
+    datasetCtx = await searchCanLIIDataset(fragments);
+  }
+
+  return analyzeFragmentRelationshipsWithNvidia(fragments, datasetCtx, options);
 };
 
 export const generateClarityGraphConnections = async (
@@ -1900,6 +1937,11 @@ export const generateClarityGraphConnections = async (
         type: fragment.type,
         content: fragment.content,
       })),
+      {
+        includeDatasetContext: false,
+        maxFragmentContentChars: 350,
+        maxOutputTokens: 2048,
+      },
     );
 
     if (records.length === 0) {
@@ -1937,7 +1979,8 @@ export const generateClarityGraphConnections = async (
             toContent: toFragment.content,
           }).slice(0, 900),
           strength: relationStrength(record.relationship),
-        } satisfies ClarityConnectionSuggestion;
+          legalCitations: record.legalCitations,
+        } as ClarityConnectionSuggestion;
       })
       .filter((item): item is ClarityConnectionSuggestion => Boolean(item));
 
@@ -2108,9 +2151,17 @@ export const decideProblemSpaceClarityProgress = (
 export const generateProblemSpaceConclusion = async (
   input: ClarityConnectionInput[],
   defendingSide?: DefendingSide,
+  connections?: Array<{
+    fromNodeId: string;
+    toNodeId: string;
+    fromFragmentId: string;
+    toFragmentId: string;
+    reason: string;
+    strength: string;
+  }>,
 ): Promise<ProblemSpaceConclusion> => {
   if (input.length === 0) {
-    return fallbackProblemSpaceConclusion(input);
+    return fallbackProblemSpaceConclusion(input, defendingSide);
   }
 
   await ensureDatasetFresh();
@@ -2120,8 +2171,205 @@ export const generateProblemSpaceConclusion = async (
   const datasetCtx = await searchCanLIIDataset(allFragments);
 
   try {
-    return await generateProblemSpaceConclusionWithNvidia(input, datasetCtx, defendingSide);
-  } catch {
-    return fallbackProblemSpaceConclusion(input);
+    return await generateProblemSpaceConclusionWithNvidia(input, datasetCtx, defendingSide, connections);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[AI_CONCLUSION_FALLBACK] ${compactErrorMessage(message)}`);
+    }
+    return fallbackProblemSpaceConclusion(input, defendingSide);
   }
+};
+
+// ---------------------------------------------------------------------------
+// Fragment Suggestions
+// ---------------------------------------------------------------------------
+
+export type FragmentSuggestion = {
+  nodeId: string;
+  nodeTitle: string;
+  type: FragmentType;
+  content: string;
+  reason: string;
+};
+
+const generateFragmentSuggestionsWithNvidia = async (
+  input: ClarityConnectionInput[],
+): Promise<FragmentSuggestion[]> => {
+  const payload = input
+    .map((node) => ({
+      nodeId: node.nodeId,
+      nodeTitle: node.nodeTitle,
+      fragments: node.fragments.map((f) => ({
+        id: f.id,
+        type: f.type,
+        content: f.content.length > 200 ? f.content.slice(0, 200) + "..." : f.content,
+      })),
+    }))
+    .filter((node) => node.fragments.length > 0);
+
+  const text = await nvidiaChatCompletion({
+    messages: [
+      {
+        role: "system",
+        content: `You are a legal case analyst. Given existing case fragments, suggest 3-5 NEW fragments that would strengthen the analysis.
+
+Fragment types: QUESTION, IDEA, OBSERVATION, CONSTRAINS, CONCLUSION.
+
+Return ONLY a JSON array:
+[{"nodeId":"existing node id","type":"TYPE","content":"suggested text","reason":"why this helps"}]
+
+Rules: Only suggest types listed below per node. Do not duplicate existing content.`,
+      },
+      {
+        role: "user",
+        content: `Nodes and fragments:\n${JSON.stringify(payload, null, 0)}\n\nSuggest 3-5 new fragments to strengthen this case.`,
+      },
+    ],
+    maxTokens: 768,
+    temperature: 0,
+    model: getActiveRelationshipModel(),
+    useChainOfThought: true,
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[AI_SUGGESTIONS_RAW]", text.slice(0, 500));
+  }
+
+  const parsed = extractJsonArray(text);
+
+  if (!parsed || !Array.isArray(parsed)) {
+    return [];
+  }
+
+  const validTypes = new Set<string>(["QUESTION", "IDEA", "OBSERVATION", "CONSTRAINS", "CONCLUSION"]);
+  const nodeIds = new Set(input.map((n) => n.nodeId));
+
+  return parsed
+    .filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null)
+    .filter((s) => {
+      const nodeId = s.nodeId as string | undefined;
+      const type = s.type as string | undefined;
+      const content = s.content as string | undefined;
+      const reason = s.reason as string | undefined;
+      return Boolean(nodeId && type && content && reason && nodeIds.has(nodeId) && validTypes.has(type));
+    })
+    .map((s) => ({
+      nodeId: s.nodeId as string,
+      nodeTitle: input.find((n) => n.nodeId === (s.nodeId as string))?.nodeTitle ?? "",
+      type: s.type as FragmentType,
+      content: (s.content as string).trim(),
+      reason: (s.reason as string).trim(),
+    }))
+    .slice(0, 6);
+};
+
+const fallbackFragmentSuggestions = (
+  input: ClarityConnectionInput[],
+): FragmentSuggestion[] => {
+  const suggestions: FragmentSuggestion[] = [];
+
+  for (const node of input) {
+    const types = node.fragments.map((f) => f.type);
+    const fragCount = node.fragments.length;
+    const hasQuestion = types.includes("QUESTION");
+    const hasIdea = types.includes("IDEA");
+    const hasObservation = types.includes("OBSERVATION");
+    const hasConstraint = types.includes("CONSTRAINS");
+    const hasConclusion = types.includes("CONCLUSION");
+
+    // Missing type suggestions
+    if (!hasQuestion) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "QUESTION",
+        content: `What are the key legal issues regarding ${node.nodeTitle}?`,
+        reason: "A clear question focuses the analysis and guides evidence gathering",
+      });
+    }
+
+    if (!hasObservation && fragCount > 0) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "OBSERVATION",
+        content: `What facts or evidence support or relate to "${node.nodeTitle}"?`,
+        reason: "Observations provide the factual foundation for legal arguments",
+      });
+    }
+
+    if (!hasIdea && fragCount >= 1) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "IDEA",
+        content: `Consider potential legal theories or arguments that apply to ${node.nodeTitle}`,
+        reason: "Ideas help develop legal theories before forming conclusions",
+      });
+    }
+
+    if (!hasConstraint && fragCount >= 2) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "CONSTRAINS",
+        content: `What limitations, risks, or counterarguments exist for ${node.nodeTitle}?`,
+        reason: "Constraints identify weaknesses that need to be addressed",
+      });
+    }
+
+    if (!hasConclusion && fragCount >= 3) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "CONCLUSION",
+        content: `Based on the available evidence, what can be determined about ${node.nodeTitle}?`,
+        reason: "Conclusions synthesize findings into actionable determinations",
+      });
+    }
+
+    // Strengthening suggestions — add more depth even when types are covered
+    if (fragCount > 0 && fragCount < 3) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "IDEA",
+        content: `What alternative interpretations or theories exist for ${node.nodeTitle}?`,
+        reason: "Multiple theories strengthen analysis by showing thorough consideration",
+      });
+    }
+
+    if (fragCount >= 2 && hasObservation) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "OBSERVATION",
+        content: `What additional evidence or facts would strengthen the position on ${node.nodeTitle}?`,
+        reason: "More evidence makes arguments more persuasive",
+      });
+    }
+
+    if (fragCount >= 3 && hasConstraint) {
+      suggestions.push({
+        nodeId: node.nodeId,
+        nodeTitle: node.nodeTitle,
+        type: "IDEA",
+        content: `How could the constraints facing ${node.nodeTitle} be addressed or mitigated?`,
+        reason: "Addressing constraints proactively strengthens the overall position",
+      });
+    }
+  }
+
+  return suggestions.slice(0, 5);
+};
+
+export const generateFragmentSuggestions = async (
+  input: ClarityConnectionInput[],
+): Promise<FragmentSuggestion[]> => {
+  if (input.length === 0) {
+    return [];
+  }
+
+  return fallbackFragmentSuggestions(input);
 };

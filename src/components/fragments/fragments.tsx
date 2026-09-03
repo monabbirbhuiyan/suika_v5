@@ -17,79 +17,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 type Props = {
   problemSpaceId: string;
   nodeFragments: Fragment[];
 };
 
-const typeButtonStyles: Record<(typeof fragmentTypes)[number], string> = {
-  QUESTION: "border-primary bg-primary/10 text-primary",
-  IDEA: "border-[#005b96] bg-[#005b96]/10 text-[#005b96]",
-  OBSERVATION: "border-[#dc8b30] bg-[#dc8b30]/10 text-[#dc8b30]",
-  CONSTRAINS: "border-destructive bg-destructive/10 text-destructive",
-  CONCLUSION: "border-[#52bf90] bg-[#52bf90]/10 text-[#52bf90]",
-  LEGAL_ELEMENT: "border-[#6d28d9] bg-[#6d28d9]/10 text-[#6d28d9]",
-  BINDING_AUTHORITY: "border-[#7c3aed] bg-[#7c3aed]/10 text-[#7c3aed]",
-  PERSUASIVE_AUTHORITY: "border-[#a855f7] bg-[#a855f7]/10 text-[#a855f7]",
-  PROCEDURAL_FACT: "border-[#0891b2] bg-[#0891b2]/10 text-[#0891b2]",
-  EVIDENTIARY_FACT: "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]",
+const typeDotColors: Record<(typeof fragmentTypes)[number], string> = {
+  QUESTION: "bg-[#12753e]",
+  IDEA: "bg-[#3b82f6]",
+  OBSERVATION: "bg-[#f59e0b]",
+  CONSTRAINS: "bg-[#bc000e]",
+  CONCLUSION: "bg-[#10b981]",
 };
 
-const typeStyles: Record<
-  Fragment["type"],
-  { border: string; dot: string; label: string }
-> = {
-  QUESTION: {
-    border: "border-l-primary",
-    dot: "bg-primary",
-    label: "Question",
-  },
-  IDEA: {
-    border: "border-l-[#005b96]",
-    dot: "bg-[#005b96]",
-    label: "Idea",
-  },
-  OBSERVATION: {
-    border: "border-l-[#dc8b30]",
-    dot: "bg-[#dc8b30]",
-    label: "Observation",
-  },
-  CONSTRAINS: {
-    border: "border-l-destructive",
-    dot: "bg-destructive",
-    label: "Constrains",
-  },
-  CONCLUSION: {
-    border: "border-l-[#52bf90]",
-    dot: "bg-[#52bf90]",
-    label: "Conclusion",
-  },
-  LEGAL_ELEMENT: {
-    border: "border-l-[#6d28d9]",
-    dot: "bg-[#6d28d9]",
-    label: "Legal Element",
-  },
-  BINDING_AUTHORITY: {
-    border: "border-l-[#7c3aed]",
-    dot: "bg-[#7c3aed]",
-    label: "Binding Authority",
-  },
-  PERSUASIVE_AUTHORITY: {
-    border: "border-l-[#a855f7]",
-    dot: "bg-[#a855f7]",
-    label: "Persuasive Authority",
-  },
-  PROCEDURAL_FACT: {
-    border: "border-l-[#0891b2]",
-    dot: "bg-[#0891b2]",
-    label: "Procedural Fact",
-  },
-  EVIDENTIARY_FACT: {
-    border: "border-l-[#0d9488]",
-    dot: "bg-[#0d9488]",
-    label: "Evidentiary Fact",
-  },
+const typeButtonStyles: Record<(typeof fragmentTypes)[number], string> = {
+  QUESTION: "border-[#12753e]/30 bg-[#dff3e7] text-[#12753e]",
+  IDEA: "border-blue-200 bg-blue-50 text-blue-700",
+  OBSERVATION: "border-amber-200 bg-amber-50 text-amber-700",
+  CONSTRAINS: "border-[#bc000e]/30 bg-[#fde6e8] text-[#bc000e]",
+  CONCLUSION: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
+
+const typeLabels: Record<Fragment["type"], string> = {
+  QUESTION: "Question",
+  IDEA: "Idea",
+  OBSERVATION: "Observation",
+  CONSTRAINS: "Constraint",
+  CONCLUSION: "Conclusion",
 };
 
 const singleInstanceFragmentTypeSet = new Set<string>(
@@ -102,11 +63,6 @@ const fragmentTypePriority: Record<Fragment["type"], number> = {
   OBSERVATION: 2,
   CONSTRAINS: 3,
   CONCLUSION: 4,
-  LEGAL_ELEMENT: 5,
-  BINDING_AUTHORITY: 6,
-  PERSUASIVE_AUTHORITY: 7,
-  PROCEDURAL_FACT: 8,
-  EVIDENTIARY_FACT: 9,
 };
 
 const getFragmentTypeLabels = (nodeFragments: Fragment[]) => {
@@ -122,7 +78,7 @@ const getFragmentTypeLabels = (nodeFragments: Fragment[]) => {
     const seen = (seenByType.get(fragment.type) ?? 0) + 1;
     seenByType.set(fragment.type, seen);
 
-    const baseLabel = typeStyles[fragment.type].label;
+    const baseLabel = typeLabels[fragment.type];
     const total = totalByType.get(fragment.type) ?? 0;
 
     return total > 1 ? `${baseLabel} ${seen}` : baseLabel;
@@ -164,9 +120,6 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
     });
   }, [nodeFragments]);
 
-  const formatTypeLabel = (value: Fragment["type"]) =>
-    value.charAt(0) + value.slice(1).toLowerCase();
-
   const disabledEditTypes = React.useMemo(() => {
     if (!editingFragmentId) {
       return new Set<Fragment["type"]>();
@@ -193,14 +146,12 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
 
   const startFragmentEdit = (fragment: Fragment) => {
     setEditingFragmentId(fragment.id);
-
     setEditingFragmentContent(fragment.content || "");
     setEditingFragmentType(fragment.type);
   };
 
   const cancelFragmentEdit = () => {
     setEditingFragmentId(null);
-
     setEditingFragmentContent("");
     setEditingFragmentType("QUESTION");
   };
@@ -255,20 +206,23 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
     }
   };
 
+  const formatTypeLabel = (value: Fragment["type"]) =>
+    value.charAt(0) + value.slice(1).toLowerCase();
+
   return (
     <>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {orderedNodeFragments.map((fragment, index) => {
-          const typeStyle = typeStyles[fragment.type];
+          const dotColor = typeDotColors[fragment.type];
           const typeLabel = fragmentTypeLabels[index];
           return (
             <div
               key={fragment.id}
-              className={`rounded-md border border-l-[3px] bg-card p-3 ${typeStyle.border}`}
+              className="group/frag rounded-lg bg-stone-50/60 hover:bg-stone-50 border border-stone-100/80 transition-all duration-150"
             >
               {editingFragmentId === fragment.id ? (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {fragmentTypes.map((type) => {
                       const isActive = editingFragmentType === type;
                       const isDisabled = disabledEditTypes.has(type);
@@ -277,12 +231,13 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                           key={type}
                           type="button"
                           variant="outline"
-                          className={`justify-start border transition-opacity hover:cursor-pointer ${typeButtonStyles[type]} ${
+                          size="sm"
+                          className={`justify-start border text-[11px] h-7 transition-all duration-150 hover:cursor-pointer ${typeButtonStyles[type]} ${
                             isActive
-                              ? "opacity-100"
+                              ? "ring-2 ring-offset-1 ring-stone-300 opacity-100 font-medium"
                               : isDisabled
                                 ? "opacity-20"
-                                : "opacity-45 hover:opacity-70"
+                                : "opacity-50 hover:opacity-80"
                           }`}
                           onClick={() => {
                             if (!isDisabled) {
@@ -301,20 +256,22 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                     onChange={(event) =>
                       setEditingFragmentContent(event.target.value)
                     }
-                    className="min-h-20"
+                    className="min-h-[60px] text-[13px] bg-white border-stone-200 focus-visible:ring-stone-300 resize-none leading-relaxed"
                     placeholder="Fragment content"
                   />
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1.5">
                     <Button
                       size="sm"
-                      variant="secondary"
+                      variant="ghost"
                       onClick={cancelFragmentEdit}
+                      className="h-7 px-3 text-[12px] text-stone-500 hover:text-stone-700 hover:bg-stone-100"
                     >
                       Cancel
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleUpdateFragment(fragment.id)}
+                      className="h-7 px-4 text-[12px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg"
                       disabled={
                         actionLoadingKey === `fragment-update-${fragment.id}`
                       }
@@ -324,43 +281,61 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                   </div>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full ${typeStyle.dot}`}
-                      />
-                      <span className="text-[10px] text-muted-foreground tracking-wider">
-                        {typeLabel}
-                      </span>
+                <div className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${dotColor} shrink-0`}
+                        />
+                        <span className="text-[11px] font-medium text-stone-500">
+                          {typeLabel}
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-stone-700 leading-relaxed">
+                        {fragment.content}
+                      </p>
+                      <p className="text-[10px] text-stone-400 mt-1">
+                        {new Date(fragment.createdAt).toLocaleDateString(
+                          undefined,
+                          { month: "short", day: "numeric" },
+                        )}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => startFragmentEdit(fragment)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteFragmentId(fragment.id)}
-                        disabled={
-                          actionLoadingKey === `fragment-delete-${fragment.id}`
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    <div className="shrink-0 opacity-0 group-hover/frag:opacity-100 transition-opacity duration-150">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-stone-300 hover:text-stone-500 hover:bg-stone-200/50"
+                          >
+                            <span className="text-xs leading-none">···</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-32 bg-white border-stone-200 shadow-xl rounded-xl"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => startFragmentEdit(fragment)}
+                            className="text-stone-600 focus:bg-stone-50 focus:text-stone-800 rounded-lg text-[13px] cursor-pointer"
+                          >
+                            <Pencil className="h-3 w-3 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-[#bc000e] focus:bg-[#fde6e8] focus:text-[#bc000e] rounded-lg text-[13px] cursor-pointer"
+                            onClick={() => setDeleteFragmentId(fragment.id)}
+                          >
+                            <Trash2 className="h-3 w-3 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-                  <h4 className="text-sm font-medium text-foreground">
-                    {fragment.content}
-                  </h4>
-                  <p className="text-[10px] text-muted-foreground/60 mt-2">
-                    {new Date(fragment.createdAt).toLocaleDateString()}
-                  </p>
-                </>
+                </div>
               )}
             </div>
           );
@@ -375,18 +350,21 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="bg-white border-stone-200 rounded-2xl max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete fragment</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-stone-800 text-[15px]">
+              Delete fragment
+            </DialogTitle>
+            <DialogDescription className="text-stone-500 text-[13px]">
               This will permanently delete this fragment.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="secondary"
               onClick={() => setDeleteFragmentId(null)}
               disabled={actionLoadingKey !== null}
+              className="bg-stone-100 hover:bg-stone-200 text-stone-700 border-0 rounded-lg text-[13px]"
             >
               Cancel
             </Button>
@@ -398,6 +376,7 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                 }
               }}
               disabled={actionLoadingKey !== null}
+              className="bg-[#bc000e] hover:bg-[#8e000a] text-white rounded-lg text-[13px]"
             >
               Delete
             </Button>

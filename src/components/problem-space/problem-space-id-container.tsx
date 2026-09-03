@@ -3,20 +3,18 @@ import React from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import {
-  AiSuggestion,
   GraphNode,
   ProblemSpace,
   Fragment,
   User,
 } from "@/generated/prisma";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Pencil, Plus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import LoadingSpinner from "../global/loading-spinner";
 import { Button } from "../ui/button";
 import CreateNodeForm from "../forms/create-node-form";
 import ProblemSpaceNodes from "./node";
-import AiWeavingPanel from "./ai-weaving-panel";
 import ConcludeProblemSpacePanel from "./conclude-problem-space-panel";
 import EditProblemSpaceForm from "../forms/edit-problem-space-form";
 
@@ -39,12 +37,10 @@ type Props = {
   problemSpace: ProblemSpace & {
     fragments?: Fragment[];
     graphNodes?: GraphNode[];
-    suggestions?: AiSuggestion[];
   };
 };
 
 const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
-  const [aiOpen, setAiOpen] = React.useState(true);
   const [createNodeOpen, setCreateNodeOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const fragments = Array.isArray(problemSpace.fragments)
@@ -53,102 +49,110 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
   const graphNodes = Array.isArray(problemSpace.graphNodes)
     ? problemSpace.graphNodes
     : null;
-  const suggestions = Array.isArray(problemSpace.suggestions)
-    ? problemSpace.suggestions
-    : [];
+
+  const totalFragments = fragments?.length ?? 0;
+  const totalNodes = graphNodes?.length ?? 0;
 
   return (
     <motion.div
       className="flex flex-col h-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-border/40 flex items-center justify-between bg-background shrink-0">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/problem-spaces/${user.id}`}
-            className="text-muted-foreground hover:text-foreground transition-colors rounded-md p-1 flex flex-row items-center gap-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
+      {/* Top bar */}
+      <div className="border-b border-stone-200/60 bg-white/80 backdrop-blur-sm shrink-0">
+        <div className="px-6 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/problem-spaces/${user.id}`}
+              className="text-stone-400 hover:text-stone-600 transition-colors duration-150 rounded-lg p-1.5 -ml-1.5 hover:bg-stone-100/60 flex items-center gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="text-[13px]">Back</span>
+            </Link>
 
-          <div>
-            <h2 className="font-serif text-lg text-foreground">
-              {problemSpace.title}
-            </h2>
-            <p className="text-[10px] text-muted-foreground">
-              {problemSpace.fragments?.length} fragements &middot;{" "}
-              {problemSpace.progress} % clarity &middot; Last updated:{" "}
-              {problemSpace.updatedAt.toLocaleDateString()}
-            </p>
+            <div className="h-5 w-px bg-stone-200/60" />
+
+            <div>
+              <h1 className="text-base font-semibold text-stone-800 leading-tight">
+                {problemSpace.title}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#dff3e7] text-[#12753e] text-[11px] font-medium">
+                  {totalNodes} node{totalNodes !== 1 ? "s" : ""}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[11px] font-medium">
+                  {totalFragments} fragment{totalFragments !== 1 ? "s" : ""}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[11px] font-medium">
+                  {problemSpace.progress}% clarity
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium"
+            className="text-[13px] text-stone-400 hover:text-stone-600 hover:bg-stone-100/60 h-8"
           >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit Details
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit
           </Button>
-          <button
-            onClick={() => setAiOpen(!aiOpen)}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
-              aiOpen
-                ? "bg-sage text-background"
-                : "bg-card text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            AI Weaving
-          </button>
         </div>
+
+        <EditProblemSpaceForm
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          problemSpaceId={problemSpace.id}
+          initialTitle={problemSpace.title}
+          initialDescription={problemSpace.description}
+          userId={user.id}
+        />
+
+        <ConcludeProblemSpacePanel
+          problemSpaceId={problemSpace.id}
+          userId={user.id}
+        />
       </div>
 
-      <EditProblemSpaceForm
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        problemSpaceId={problemSpace.id}
-        initialTitle={problemSpace.title}
-        initialDescription={problemSpace.description}
-        userId={user.id}
-      />
-
-      {/* tabs */}
-      <Tabs defaultValue="Nodes" className="flex-1 gap-0">
-        {aiOpen ? (
-          <div className="border-b border-border/40 bg-background px-5 py-3">
-            <AiWeavingPanel
-              problemSpaceId={problemSpace.id}
-              suggestions={suggestions}
-            />
+      {/* Main content */}
+      <Tabs defaultValue="Nodes" className="flex-1 min-h-0">
+        <div className="px-6 bg-white border-b border-stone-200/60 shrink-0">
+          <div className="flex items-center justify-between">
+            <TabsList className="h-10 bg-transparent rounded-none border-0 p-0 gap-0">
+              <TabsTrigger
+                value="Nodes"
+                className="text-[13px] text-stone-400 data-[state=active]:text-stone-800 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-[#12753e] rounded-none px-1 py-2.5 mr-4 transition-colors"
+              >
+                Nodes
+              </TabsTrigger>
+              <TabsTrigger
+                value="clarity-graph"
+                className="text-[13px] text-stone-400 data-[state=active]:text-stone-800 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-[#12753e] rounded-none px-1 py-2.5 transition-colors"
+              >
+                Clarity Graph
+              </TabsTrigger>
+            </TabsList>
           </div>
-        ) : null}
-
-        <ConcludeProblemSpacePanel problemSpaceId={problemSpace.id} />
-
-        <div className="px-5 py-3 border-b border-border/40 bg-background shrink-0">
-          <TabsList className="w-full flex mx-auto">
-            <TabsTrigger value="Nodes">Nodes</TabsTrigger>
-            <TabsTrigger value="clarity-graph">Clarity Graph</TabsTrigger>
-          </TabsList>
         </div>
 
-        <TabsContent value="Nodes" className="p-5">
-          <div className="flex items-center gap-2">
+        <TabsContent value="Nodes" className="mt-0 p-6 overflow-auto">
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[13px] text-stone-400">
+              {totalNodes} node{totalNodes !== 1 ? "s" : ""} · {totalFragments}{" "}
+              fragment{totalFragments !== 1 ? "s" : ""}
+            </p>
             <Button
               onClick={() => setCreateNodeOpen(true)}
-              variant="secondary"
-              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium"
+              size="sm"
+              className="h-8 text-[13px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg"
             >
-              <Plus className="h-4 w-4" />
-              Create Node
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              New Node
             </Button>
             <CreateNodeForm
               open={createNodeOpen}
@@ -157,14 +161,31 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
             />
           </div>
           {!graphNodes || graphNodes.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Create at least one node first. Fragments are added inside nodes.
-            </p>
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="h-16 w-16 rounded-2xl bg-[#dff3e7] flex items-center justify-center mb-4">
+                <Plus className="h-6 w-6 text-[#12753e]" />
+              </div>
+              <p className="text-[15px] text-stone-600 font-medium">
+                No nodes yet
+              </p>
+              <p className="text-[13px] text-stone-400 mt-1.5 max-w-xs text-center leading-relaxed">
+                Nodes help you organize fragments by topic. Create your first
+                node to get started.
+              </p>
+              <Button
+                onClick={() => setCreateNodeOpen(true)}
+                size="sm"
+                className="mt-5 h-9 text-[13px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Create Node
+              </Button>
+            </div>
           ) : null}
           {fragments === null ? (
             <LoadingSpinner
               variant="inline"
-              label="Loading Fragements..."
+              label="Loading fragments..."
               className="min-h-20"
             />
           ) : null}
@@ -177,7 +198,7 @@ const ProblemSpaceIdContainer = ({ user, problemSpace }: Props) => {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="clarity-graph" className="p-5">
+        <TabsContent value="clarity-graph" className="mt-0 p-6 overflow-auto">
           {graphNodes === null ? (
             <LoadingSpinner
               variant="inline"

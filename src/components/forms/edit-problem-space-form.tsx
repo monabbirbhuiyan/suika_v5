@@ -6,14 +6,20 @@ import { X, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MdDescription, MdTitle } from "react-icons/md";
 import { toast } from "sonner";
 import { updateProblemSpace } from "@/action/problem-space";
 import { ProblemSpaceFormValues, problemSpaceSchema } from "@/lib/schemas";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "../ui/form";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 
 type Props = {
   open: boolean;
@@ -34,7 +40,8 @@ const EditProblemSpaceForm = ({
 }: Props) => {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = React.useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] =
+    React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const form = useForm<ProblemSpaceFormValues>({
@@ -106,7 +113,7 @@ const EditProblemSpaceForm = ({
       <AnimatePresence>
         {open ? (
           <motion.div
-            className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-stone-900/20 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -114,20 +121,20 @@ const EditProblemSpaceForm = ({
           >
             <motion.div
               className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="rounded-2xl border border-border bg-background p-6 shadow-xl">
-                <div className="mb-6 flex items-center justify-between">
-                  <h2 className="font-serif text-xl text-foreground">
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+                <div className="mb-5 flex items-center justify-between">
+                  <h2 className="text-[15px] font-semibold text-stone-800">
                     Edit Problem Space
                   </h2>
                   <button
                     onClick={() => onOpenChange(false)}
-                    className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                    className="rounded-lg p-1 text-stone-300 transition-colors hover:text-stone-500 hover:bg-stone-50"
                     aria-label="Close dialog"
                   >
                     <X className="h-4 w-4" />
@@ -136,21 +143,20 @@ const EditProblemSpaceForm = ({
 
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)}>
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4">
                       <FormField
                         control={form.control}
                         name="title"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Title</FormLabel>
+                            <FormLabel className="text-[13px] text-stone-600">
+                              Title
+                            </FormLabel>
                             <FormControl>
-                              <div className="relative">
-                                <MdTitle className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-                                <Input
-                                  {...field}
-                                  className="pl-10 transition-all duration-200 focus:scale-[1.01]"
-                                />
-                              </div>
+                              <Input
+                                {...field}
+                                className="h-10 bg-stone-50 border-stone-200 focus-visible:ring-stone-300 text-[14px] rounded-lg"
+                              />
                             </FormControl>
                           </FormItem>
                         )}
@@ -161,16 +167,15 @@ const EditProblemSpaceForm = ({
                         name="description"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Description</FormLabel>
+                            <FormLabel className="text-[13px] text-stone-600">
+                              Description
+                            </FormLabel>
                             <FormControl>
-                              <div className="relative">
-                                <MdDescription className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-                                <Input
-                                  {...field}
-                                  value={field.value ?? ""}
-                                  className="pl-10 transition-all duration-200 focus:scale-[1.01]"
-                                />
-                              </div>
+                              <Input
+                                {...field}
+                                value={field.value ?? ""}
+                                className="h-10 bg-stone-50 border-stone-200 focus-visible:ring-stone-300 text-[14px] rounded-lg"
+                              />
                             </FormControl>
                           </FormItem>
                         )}
@@ -180,25 +185,26 @@ const EditProblemSpaceForm = ({
                     <div className="mt-6 flex items-center justify-between">
                       <Button
                         type="button"
-                        variant="destructive"
+                        variant="ghost"
                         onClick={() => setDeleteConfirmationOpen(true)}
-                        className="rounded-full px-5 py-2 text-sm font-medium transition-colors"
+                        className="text-[13px] text-red-400 hover:text-red-600 hover:bg-red-50 h-9 rounded-lg"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                         Delete
                       </Button>
-                      <div className="flex gap-3">
+                      <div className="flex gap-2">
                         <Button
                           type="button"
                           onClick={() => onOpenChange(false)}
-                          className="rounded-full bg-card px-5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                          variant="ghost"
+                          className="text-[13px] text-stone-500 hover:text-stone-700 h-9 rounded-lg"
                         >
                           Cancel
                         </Button>
                         <Button
                           type="submit"
                           disabled={isSubmitting}
-                          className="rounded-full bg-sage px-6 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="h-9 px-5 text-[13px] bg-stone-800 hover:bg-stone-700 text-white rounded-lg disabled:opacity-40"
                         >
                           {isSubmitting ? "Saving..." : "Save Changes"}
                         </Button>
@@ -212,19 +218,26 @@ const EditProblemSpaceForm = ({
         ) : null}
       </AnimatePresence>
 
-      <Dialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
-        <DialogContent>
+      <Dialog
+        open={deleteConfirmationOpen}
+        onOpenChange={setDeleteConfirmationOpen}
+      >
+        <DialogContent className="bg-white border-stone-200 rounded-2xl max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Problem Space</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this problem space? This action cannot be undone and will permanently remove all associated fragments, nodes, and connections.
+            <DialogTitle className="text-stone-800 text-[15px]">
+              Delete Problem Space
+            </DialogTitle>
+            <DialogDescription className="text-stone-500 text-[13px]">
+              Are you sure? This will permanently remove all fragments, nodes,
+              and connections.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setDeleteConfirmationOpen(false)}
               disabled={isDeleting}
+              className="bg-stone-100 hover:bg-stone-200 text-stone-700 border-0 rounded-lg text-[13px]"
             >
               Cancel
             </Button>
@@ -232,6 +245,7 @@ const EditProblemSpaceForm = ({
               variant="destructive"
               onClick={handleDelete}
               disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white rounded-lg text-[13px]"
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>

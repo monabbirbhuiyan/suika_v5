@@ -1,9 +1,9 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { decideProblemSpaceClarityProgress, generateClarityGraphConnections } from "@/lib/ai";
+import { stableInputSignature } from "@/lib/cache-signature";
 import { getServerSession } from "./get-session";
 
 const isTransientDbTimeout = (error: unknown) => {
@@ -24,30 +24,6 @@ const isTransientDbTimeout = (error: unknown) => {
   }
 
   return false;
-};
-
-const stableInputSignature = (
-  input: Array<{
-    nodeId: string;
-    nodeTitle: string;
-    fragments: Array<{ id: string; type: string; content: string }>;
-  }>,
-) => {
-  const normalized = [...input]
-    .map((node) => ({
-      nodeId: node.nodeId,
-      nodeTitle: node.nodeTitle,
-      fragments: [...node.fragments]
-        .map((fragment) => ({
-          id: fragment.id,
-          type: fragment.type,
-          content: fragment.content.trim(),
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    }))
-    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
-
-  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 };
 
 export const getProblemSpaces = async () => {
@@ -186,7 +162,6 @@ export const getProblemSpaceById = async (id: string) => {
             },
           },
         },
-        suggestions: true,
       },
     });
   } catch (error) {
@@ -224,19 +199,38 @@ export const getProblemSpaceById = async (id: string) => {
 
     try {
       const signature = stableInputSignature(input);
-      const suggestions = await generateClarityGraphConnections(input);
-      const progress = decideProblemSpaceClarityProgress(input, suggestions);
 
-      if (progress !== (problemSpace.progress ?? 0)) {
-        await prisma.problemSpace.update({
-          where: { id: problemSpace.id },
-          data: {
-            progress,
-            aiConnectionsSignature: signature,
-            aiConnectionsCache: suggestions as Prisma.InputJsonValue,
-          },
-        });
-        problemSpace.progress = progress;
+      if (
+        problemSpace.aiConnectionsSignature === signature &&
+        problemSpace.aiConnectionsCache
+      ) {
+        const cachedSuggestions = problemSpace.aiConnectionsCache as Awaited<
+          ReturnType<typeof generateClarityGraphConnections>
+        >;
+        const progress = decideProblemSpaceClarityProgress(input, cachedSuggestions);
+
+        if (progress !== (problemSpace.progress ?? 0)) {
+          await prisma.problemSpace.update({
+            where: { id: problemSpace.id },
+            data: { progress },
+          });
+          problemSpace.progress = progress;
+        }
+      } else {
+        const suggestions = await generateClarityGraphConnections(input);
+        const progress = decideProblemSpaceClarityProgress(input, suggestions);
+
+        if (progress !== (problemSpace.progress ?? 0)) {
+          await prisma.problemSpace.update({
+            where: { id: problemSpace.id },
+            data: {
+              progress,
+              aiConnectionsSignature: signature,
+              aiConnectionsCache: suggestions as Prisma.InputJsonValue,
+            },
+          });
+          problemSpace.progress = progress;
+        }
       }
     } catch {
       // Return the problem space even when AI scoring is unavailable.

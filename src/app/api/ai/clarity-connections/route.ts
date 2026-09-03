@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getServerSession } from "@/action/get-session";
 import prisma from "@/lib/prisma";
 import { generateClarityGraphConnections } from "@/lib/ai";
+import { stableInputSignature } from "@/lib/cache-signature";
 
 export const runtime = "nodejs";
 
@@ -17,30 +17,6 @@ const shouldLogConnections = () => {
 const requestSchema = z.object({
   problemSpaceId: z.string().min(1),
 });
-
-const stableInputSignature = (
-  input: Array<{
-    nodeId: string;
-    nodeTitle: string;
-    fragments: Array<{ id: string; type: string; content: string }>;
-  }>,
-) => {
-  const normalized = [...input]
-    .map((node) => ({
-      nodeId: node.nodeId,
-      nodeTitle: node.nodeTitle,
-      fragments: [...node.fragments]
-        .map((fragment) => ({
-          id: fragment.id,
-          type: fragment.type,
-          content: fragment.content.trim(),
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    }))
-    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
-
-  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
-};
 
 export async function POST(request: Request) {
   try {

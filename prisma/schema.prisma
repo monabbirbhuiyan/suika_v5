@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -13,32 +7,29 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── Users & Auth ────────────────────────────────────────────────────────────
-
 model User {
   id                      String                   @id
   name                    String
-  email                   String
+  email                   String                   @unique
   bio                     String?
   emailVerified           Boolean                  @default(false)
   image                   String?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
-  sessions                Session[]
   accounts                Account[]
-  subscription            Subscription?
-  problemSpaces           ProblemSpace[]
   notificationPreferences NotificationPreferences?
   privacyPreferences      PrivacyPreferences?
+  problemSpaces           ProblemSpace[]
+  sessions                Session[]
+  subscription            Subscription?
 
-  @@unique([email])
   @@map("user")
 }
 
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ipAddress String?
@@ -46,7 +37,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@index([userId])
   @@map("session")
 }
@@ -56,7 +46,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -66,6 +55,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("account")
@@ -83,58 +73,36 @@ model Verification {
   @@map("verification")
 }
 
-// ─── Subscriptions & Plans ───────────────────────────────────────────────────
-
-enum PlanTier {
-  FREE
-  THOUGHT_PARTNER
-  LIFE_ARCHITECT
-}
-
-// ─── Notification Preferences ────────────────────────────────────────────────
-
 model NotificationPreferences {
-  id     String @id @default(cuid())
-  userId String @unique
-
-  // Email notifications
-  emailJournalReminder      Boolean @default(true)
-  emailWeeklySummary        Boolean @default(true)
-  emailProblemSpaceActivity Boolean @default(false)
-  emailProductUpdates       Boolean @default(true)
-  emailSecurityAlerts       Boolean @default(true)
-
-  // In-app notifications
-  inAppJournalPrompt   Boolean @default(true)
-  inAppAiSuggestions   Boolean @default(true)
-  inAppProblemProgress Boolean @default(true)
-  inAppMilestones      Boolean @default(true)
-
-  // Digest frequency
-  digestFrequency String @default("weekly") // daily | weekly | never
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  emailJournalReminder      Boolean  @default(true)
+  emailWeeklySummary        Boolean  @default(true)
+  emailProblemSpaceActivity Boolean  @default(false)
+  emailProductUpdates       Boolean  @default(true)
+  emailSecurityAlerts       Boolean  @default(true)
+  inAppJournalPrompt        Boolean  @default(true)
+  inAppProblemProgress      Boolean  @default(true)
+  inAppMilestones           Boolean  @default(true)
+  digestFrequency           String   @default("weekly")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
 }
 
 model PrivacyPreferences {
-  id     String @id @default(cuid())
-  userId String @unique
-
-  profileSearchable         Boolean @default(false)
-  allowUsageAnalytics       Boolean @default(false)
-  allowAiTraining           Boolean @default(false)
-  allowPersonalizedInsights Boolean @default(true)
-  dataRetentionPolicy       String  @default("forever") // forever | 365d | 180d | 90d | 30d
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  profileSearchable         Boolean  @default(false)
+  allowUsageAnalytics       Boolean  @default(false)
+  allowAiTraining           Boolean  @default(false)
+  allowPersonalizedInsights Boolean  @default(true)
+  dataRetentionPolicy       String   @default("forever")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("privacy_preferences")
 }
@@ -148,60 +116,31 @@ model Subscription {
   currentPeriodEnd DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }
 
-// ─── Problem Spaces ──────────────────────────────────────────────────────────
-
-enum Sentiment {
-  CLARIFYING
-  CONTRADICTING
-  RESOLVING
-  NEUTRAL
-}
-
 model ProblemSpace {
-  id          String    @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  progress    Int       @default(0) // 0–100 clarity percentage
-  sentiment   Sentiment @default(NEUTRAL)
-  
+  id                     String            @id @default(cuid())
+  userId                 String
+  title                  String
+  description            String?
+  progress               Int               @default(0)
+  sentiment              Sentiment         @default(NEUTRAL)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  aiConclusionCache      Json?
   aiConnectionsCache     Json?
   aiConnectionsSignature String?
-  aiConclusionCache      Json?
-  aiConclusionSignature  String?
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fragments   Fragment[]
-  graphNodes  GraphNode[]
-  connections GraphConnection[]
-  suggestions AiSuggestion[]
+  aiConclusionSignature  Json?
+  fragments              Fragment[]
+  connections            GraphConnection[]
+  graphNodes             GraphNode[]
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("problem_spaces")
-}
-
-// ─── Fragments ───────────────────────────────────────────────────────────────
-
-enum FragmentType {
-  QUESTION
-  IDEA
-  OBSERVATION
-  CONSTRAINS
-  CONCLUSION
-  LEGAL_ELEMENT
-  BINDING_AUTHORITY
-  PERSUASIVE_AUTHORITY
-  PROCEDURAL_FACT
-  EVIDENTIARY_FACT
 }
 
 model Fragment {
@@ -213,97 +152,129 @@ model Fragment {
   sortOrder      Int          @default(0)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-
-  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-  node         GraphNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  node           GraphNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  problemSpace   ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
 
   @@index([problemSpaceId])
   @@index([nodeId])
   @@map("fragments")
 }
 
-// ─── Clarity Graph ───────────────────────────────────────────────────────────
-
 model GraphNode {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   problemSpaceId String
   title          String
-  headerColor    String   @default("sage") // sage | soft-blue | gentle-coral | mint
-  posX           Float    @default(0)
-  posY           Float    @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  problemSpace ProblemSpace   @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-  fragments    Fragment[]
-  pins         GraphNodePin[]
+  headerColor    String         @default("sage")
+  posX           Float          @default(0)
+  posY           Float          @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  fragments      Fragment[]
+  pins           GraphNodePin[]
+  problemSpace   ProblemSpace   @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
 
   @@index([problemSpaceId])
   @@map("graph_nodes")
 }
 
-enum PinDirection {
-  INPUT
-  OUTPUT
-}
-
 model GraphNodePin {
-  id        String       @id @default(cuid())
-  nodeId    String
-  label     String
-  direction PinDirection
-  sortOrder Int          @default(0)
-
-  node           GraphNode         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  id             String            @id @default(cuid())
+  nodeId         String
+  label          String
+  direction      PinDirection
+  sortOrder      Int               @default(0)
   outConnections GraphConnection[] @relation("FromPin")
   inConnections  GraphConnection[] @relation("ToPin")
+  node           GraphNode         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@index([nodeId])
   @@map("graph_node_pins")
 }
 
 model GraphConnection {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   problemSpaceId String
   fromPinId      String
   toPinId        String
-  createdAt      DateTime @default(now())
-
-  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-  fromPin      GraphNodePin @relation("FromPin", fields: [fromPinId], references: [id], onDelete: Cascade)
-  toPin        GraphNodePin @relation("ToPin", fields: [toPinId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  fromPin        GraphNodePin @relation("FromPin", fields: [fromPinId], references: [id], onDelete: Cascade)
+  problemSpace   ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
+  toPin          GraphNodePin @relation("ToPin", fields: [toPinId], references: [id], onDelete: Cascade)
 
   @@unique([fromPinId, toPinId])
   @@index([problemSpaceId])
   @@map("graph_connections")
 }
 
-// ─── AI Weaving Suggestions ─────────────────────────────────────────────────
+model CanLIIDataset {
+  id           String             @id @default(cuid())
+  canliiId     String             @unique
+  title        String
+  citation     String?
+  court        String?
+  jurisdiction String?
+  documentType CanLIIDocumentType
+  decisionDate DateTime?
+  url          String?
+  content      String?
+  metadata     Json?
+  contentHash  String?
+  indexedAt    DateTime           @default(now())
+  lastSyncedAt DateTime?
+  syncStatus   SyncStatus         @default(PENDING)
+  syncError    String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
-enum SuggestionStrength {
-  STRONG
-  MEDIUM
-  GENTLE
+  @@index([jurisdiction])
+  @@index([court])
+  @@index([documentType])
+  @@index([decisionDate])
+  @@index([syncStatus])
+  @@map("canlii_datasets")
 }
 
-model AiSuggestion {
-  id             String             @id @default(cuid())
-  problemSpaceId String
-  fromTitle      String
-  toTitle        String
-  reason         String
-  strength       SuggestionStrength @default(MEDIUM)
-  accepted       Boolean            @default(false)
-  dismissedAt    DateTime?
-  createdAt      DateTime           @default(now())
+model CanLIISyncLog {
+  id           String     @id @default(cuid())
+  status       SyncStatus @default(PENDING)
+  startedAt    DateTime   @default(now())
+  completedAt  DateTime?
+  totalFetched Int        @default(0)
+  totalSaved   Int        @default(0)
+  totalFailed  Int        @default(0)
+  errorMessage String?
+  triggeredBy  String?
 
-  problemSpace ProblemSpace @relation(fields: [problemSpaceId], references: [id], onDelete: Cascade)
-
-  @@index([problemSpaceId])
-  @@map("ai_suggestions")
+  @@index([status])
+  @@index([startedAt])
+  @@map("canlii_sync_logs")
 }
 
-// ─── CanLII Datasets ───────────────────────────────────────────────────────────
+enum PlanTier {
+  FREE
+  THOUGHT_PARTNER
+  LIFE_ARCHITECT
+}
+
+enum Sentiment {
+  CLARIFYING
+  CONTRADICTING
+  RESOLVING
+  NEUTRAL
+}
+
+enum FragmentType {
+  QUESTION
+  IDEA
+  OBSERVATION
+  CONSTRAINS
+  CONCLUSION
+}
+
+enum PinDirection {
+  INPUT
+  OUTPUT
+}
 
 enum CanLIIDocumentType {
   CASE_LAW
@@ -320,46 +291,15 @@ enum SyncStatus {
   FAILED
 }
 
-model CanLIIDataset {
-  id                String            @id @default(cuid())
-  canliiId          String            @unique
-  title             String
-  citation          String?
-  court             String?
-  jurisdiction      String?
-  documentType      CanLIIDocumentType
-  decisionDate      DateTime?
-  url               String?
-  content           String?
-  metadata          Json?
-  contentHash       String?
-  indexedAt         DateTime          @default(now())
-  lastSyncedAt      DateTime?
-  syncStatus        SyncStatus        @default(PENDING)
-  syncError         String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+model AnalysisChatMessage {
+  id             String   @id @default(cuid())
+  problemSpaceId String
+  userId         String
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
 
-  @@index([jurisdiction])
-  @@index([court])
-  @@index([documentType])
-  @@index([decisionDate])
-  @@index([syncStatus])
-  @@map("canlii_datasets")
-}
-
-model CanLIISyncLog {
-  id            String      @id @default(cuid())
-  status        SyncStatus  @default(PENDING)
-  startedAt     DateTime    @default(now())
-  completedAt   DateTime?
-  totalFetched  Int         @default(0)
-  totalSaved    Int         @default(0)
-  totalFailed   Int         @default(0)
-  errorMessage  String?
-  triggeredBy   String?     // userId or "system"
-  
-  @@index([status])
-  @@index([startedAt])
-  @@map("canlii_sync_logs")
+  @@index([problemSpaceId, userId])
+  @@index([createdAt])
+  @@map("analysis_chat_messages")
 }

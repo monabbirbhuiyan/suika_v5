@@ -1,5 +1,7 @@
 "use client";
 
+// @ts-ignore
+import "@xyflow/react/dist/style.css";
 import React from "react";
 import {
   Background,
@@ -23,6 +25,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import GraphCanvasControls from "./graph-canvas-controls";
 import LoadingSpinner from "../global/loading-spinner";
 import NodeDetailsSheet from "./node-details-sheet";
+import ClarityInsightsPanel from "./clarity-insights-panel";
+import { Link2, TrendingUp, AlertCircle, Lightbulb, ArrowRight } from "lucide-react";
 
 type Props = {
   problemSpaceId: string;
@@ -77,6 +81,9 @@ type ClarityNodeData = {
   fragments: Fragment[];
   labels: string[];
   onSelectNode: (nodeId: string) => void;
+  clarityPercent: number;
+  clarityStrength: "STRONG" | "MODERATE" | "WEAK" | "EMPTY";
+  connectionCount: number;
 };
 
 type ClarityEdgeData = {
@@ -97,8 +104,8 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 1.8;
 const MAX_DRAWABLE_CONNECTIONS = 14;
 const MAX_OUTGOING_PER_FRAGMENT = 2;
-const LANE_STEP = 12;
-const CONNECTIONS_CACHE_TTL_MS = 4000;
+const LANE_STEP = 18;
+const CONNECTIONS_CACHE_TTL_MS = 30000;
 
 const connectionsInFlight = new Map<string, Promise<ConnectionsApiPayload>>();
 const connectionsCache = new Map<
@@ -112,11 +119,6 @@ const fragmentTypePriority: Record<Fragment["type"], number> = {
   OBSERVATION: 2,
   CONSTRAINS: 3,
   CONCLUSION: 4,
-  LEGAL_ELEMENT: 5,
-  BINDING_AUTHORITY: 6,
-  PERSUASIVE_AUTHORITY: 7,
-  PROCEDURAL_FACT: 8,
-  EVIDENTIARY_FACT: 9,
 };
 
 const typeStyles: Record<
@@ -132,38 +134,13 @@ const typeStyles: Record<
   },
   CONSTRAINS: {
     dot: "bg-destructive",
-    label: "Constrains",
+    label: "Constraint",
     color: "#ef4444",
   },
   CONCLUSION: {
     dot: "bg-[#52bf90]",
     label: "Conclusion",
     color: "#52bf90",
-  },
-  LEGAL_ELEMENT: {
-    dot: "bg-[#6d28d9]",
-    label: "Legal Element",
-    color: "#6d28d9",
-  },
-  BINDING_AUTHORITY: {
-    dot: "bg-[#7c3aed]",
-    label: "Binding Authority",
-    color: "#7c3aed",
-  },
-  PERSUASIVE_AUTHORITY: {
-    dot: "bg-[#a855f7]",
-    label: "Persuasive Authority",
-    color: "#a855f7",
-  },
-  PROCEDURAL_FACT: {
-    dot: "bg-[#0891b2]",
-    label: "Procedural Fact",
-    color: "#0891b2",
-  },
-  EVIDENTIARY_FACT: {
-    dot: "bg-[#0d9488]",
-    label: "Evidentiary Fact",
-    color: "#0d9488",
   },
 };
 
@@ -201,37 +178,12 @@ const fragmentCardAccent: Record<
   CONSTRAINS: {
     border: "border-l-destructive",
     dot: "bg-destructive",
-    label: "Constrains",
+    label: "Constraint",
   },
   CONCLUSION: {
     border: "border-l-[#52bf90]",
     dot: "bg-[#52bf90]",
     label: "Conclusion",
-  },
-  LEGAL_ELEMENT: {
-    border: "border-l-[#6d28d9]",
-    dot: "bg-[#6d28d9]",
-    label: "Legal Element",
-  },
-  BINDING_AUTHORITY: {
-    border: "border-l-[#7c3aed]",
-    dot: "bg-[#7c3aed]",
-    label: "Binding Authority",
-  },
-  PERSUASIVE_AUTHORITY: {
-    border: "border-l-[#a855f7]",
-    dot: "bg-[#a855f7]",
-    label: "Persuasive Authority",
-  },
-  PROCEDURAL_FACT: {
-    border: "border-l-[#0891b2]",
-    dot: "bg-[#0891b2]",
-    label: "Procedural Fact",
-  },
-  EVIDENTIARY_FACT: {
-    border: "border-l-[#0d9488]",
-    dot: "bg-[#0d9488]",
-    label: "Evidentiary Fact",
   },
 };
 
@@ -321,19 +273,44 @@ const fetchClarityConnections = async (
 };
 
 const ClarityFlowNodeComponent = ({ data }: NodeProps<Node<ClarityNodeData>>) => {
+  const scoreColor =
+    data.clarityStrength === "STRONG"
+      ? { bg: "bg-[#dff3e7]", text: "text-[#12753e]", bar: "#12753e" }
+      : data.clarityStrength === "MODERATE"
+        ? { bg: "bg-amber-50", text: "text-amber-700", bar: "#d97706" }
+        : data.clarityStrength === "WEAK"
+          ? { bg: "bg-red-50", text: "text-red-600", bar: "#dc2626" }
+          : { bg: "bg-stone-50", text: "text-stone-400", bar: "#d6d3d1" };
+
   return (
     <div style={{ width: NODE_WIDTH }}>
       <Card
-        className="p-3 transition-all cursor-pointer hover:border-primary/40 relative z-0 bg-card"
+        className="p-3 transition-all cursor-pointer hover:border-[#12753e]/40 relative z-0 bg-card"
         onClick={() => data.onSelectNode(data.nodeId)}
       >
-        <div className="h-10 min-w-0 flex flex-col justify-center">
-          <p className="truncate text-sm font-medium text-foreground leading-tight">
-            {data.title}
-          </p>
-          <p className="mt-1 text-[11px] text-muted-foreground leading-tight">
-            {data.fragments.length} fragments
-          </p>
+        {/* Header with clarity badge */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-stone-800 leading-tight">
+              {data.title}
+            </p>
+            <p className="mt-1 text-[11px] text-stone-400 leading-tight">
+              {data.fragments.length} fragment{data.fragments.length !== 1 ? "s" : ""} · {data.connectionCount} link{data.connectionCount !== 1 ? "s" : ""}
+            </p>
+          </div>
+          {data.fragments.length > 0 && (
+            <div className={`shrink-0 flex items-center gap-1 rounded-full px-1.5 py-0.5 ${scoreColor.bg}`}>
+              <div className="w-8 h-1 rounded-full bg-stone-200/60 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${data.clarityPercent}%`, backgroundColor: scoreColor.bar }}
+                />
+              </div>
+              <span className={`text-[9px] font-bold ${scoreColor.text}`}>
+                {data.clarityPercent}%
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-3 flex flex-col gap-1">
@@ -549,7 +526,7 @@ const edgeTypes = {
   clarityEdge: ClarityFlowEdge,
 };
 
-const ClarityGraphCanvasInner = ({
+const ClarityGraphCanvasInner = React.memo(({
   problemSpaceId,
   graphNodes,
   fragments,
@@ -707,7 +684,7 @@ const ClarityGraphCanvasInner = ({
       const nodeFragments = orderedFragmentsByNode.get(node.id) ?? [];
 
       nodeFragments.forEach((fragment, index) => {
-        const dotY = 0;
+        const dotY = 76 + index * 28 + (index > 0 ? (index - 1) * 4 : 0);
         map.set(fragment.id, {
           fragmentId: fragment.id,
           nodeId: node.id,
@@ -852,6 +829,27 @@ const ClarityGraphCanvasInner = ({
       const position = nodePositions.get(node.id) ?? { x: 0, y: 0 };
       const nodeFragments = orderedFragmentsByNode.get(node.id) ?? [];
 
+      // Compute clarity score for this node
+      const connectedFragmentIds = new Set<string>();
+      aiConnections.forEach((conn) => {
+        if (conn.fromNodeId === node.id) connectedFragmentIds.add(conn.fromFragmentId);
+        if (conn.toNodeId === node.id) connectedFragmentIds.add(conn.toFragmentId);
+      });
+      const connectedCount = connectedFragmentIds.size;
+      const totalFrags = nodeFragments.length;
+      const clarityPercent = totalFrags > 0 ? Math.round((connectedCount / totalFrags) * 100) : 0;
+      let clarityStrength: "STRONG" | "MODERATE" | "WEAK" | "EMPTY" = "EMPTY";
+      if (totalFrags > 0) {
+        if (clarityPercent >= 75) clarityStrength = "STRONG";
+        else if (clarityPercent >= 40) clarityStrength = "MODERATE";
+        else clarityStrength = "WEAK";
+      }
+
+      // Count connections for this node
+      const nodeConnCount = aiConnections.filter(
+        (c) => c.fromNodeId === node.id || c.toNodeId === node.id,
+      ).length;
+
       return {
         id: node.id,
         type: "clarityNode",
@@ -865,19 +863,19 @@ const ClarityGraphCanvasInner = ({
           fragments: nodeFragments,
           labels: labelsByNode.get(node.id) ?? [],
           onSelectNode: setSelectedNodeId,
+          clarityPercent,
+          clarityStrength,
+          connectionCount: nodeConnCount,
         },
       };
     });
-  }, [graphNodes, labelsByNode, nodePositions, orderedFragmentsByNode]);
+  }, [graphNodes, labelsByNode, nodePositions, orderedFragmentsByNode, aiConnections]);
 
   const flowEdges = React.useMemo(() => {
     const corridorCounts = new Map<string, number>();
 
     resolvedConnections.forEach((connection) => {
-      const corridorKey = [
-        `r${Math.min(connection.fromMeta.row, connection.toMeta.row)}-${Math.max(connection.fromMeta.row, connection.toMeta.row)}`,
-        `c${Math.min(connection.fromMeta.col, connection.toMeta.col)}-${Math.max(connection.fromMeta.col, connection.toMeta.col)}`,
-      ].join("::");
+      const corridorKey = [connection.fromNodeId, connection.toNodeId].sort().join("::");
 
       corridorCounts.set(
         corridorKey,
@@ -889,10 +887,7 @@ const ClarityGraphCanvasInner = ({
 
     return resolvedConnections.map(
       (connection, index): Edge<ClarityEdgeData> => {
-        const corridorKey = [
-          `r${Math.min(connection.fromMeta.row, connection.toMeta.row)}-${Math.max(connection.fromMeta.row, connection.toMeta.row)}`,
-          `c${Math.min(connection.fromMeta.col, connection.toMeta.col)}-${Math.max(connection.fromMeta.col, connection.toMeta.col)}`,
-        ].join("::");
+        const corridorKey = [connection.fromNodeId, connection.toNodeId].sort().join("::");
 
         const corridorIndex = corridorSeen.get(corridorKey) ?? 0;
         corridorSeen.set(corridorKey, corridorIndex + 1);
@@ -933,12 +928,37 @@ const ClarityGraphCanvasInner = ({
             safeAlleyY,
             corridorIndex,
           },
-          selectable: false,
+          selectable: true,
           focusable: false,
         };
       },
     );
   }, [resolvedConnections, rowBottoms]);
+
+  // Global clarity stats
+  const globalStats = React.useMemo(() => {
+    const totalFragments = fragments.length;
+    const connectedFragments = new Set<string>();
+    aiConnections.forEach((conn) => {
+      connectedFragments.add(conn.fromFragmentId);
+      connectedFragments.add(conn.toFragmentId);
+    });
+    const connected = connectedFragments.size;
+    const percent = totalFragments > 0 ? Math.round((connected / totalFragments) * 100) : 0;
+
+    const strongNodes = graphNodes.filter((node) => {
+      const nodeFrags = orderedFragmentsByNode.get(node.id) ?? [];
+      if (nodeFrags.length === 0) return false;
+      const nodeConnIds = new Set<string>();
+      aiConnections.forEach((c) => {
+        if (c.fromNodeId === node.id) nodeConnIds.add(c.fromFragmentId);
+        if (c.toNodeId === node.id) nodeConnIds.add(c.toFragmentId);
+      });
+      return (nodeConnIds.size / nodeFrags.length) >= 0.75;
+    }).length;
+
+    return { totalFragments, connected, percent, strongNodes, totalNodes: graphNodes.length };
+  }, [fragments, aiConnections, graphNodes, orderedFragmentsByNode]);
 
   if (graphNodes.length === 0) {
     return (
@@ -950,7 +970,7 @@ const ClarityGraphCanvasInner = ({
 
   return (
     <>
-      <div className="rounded-xl border bg-card/30 p-4">
+      <div className="flex gap-0 rounded-xl border bg-card/30 overflow-hidden">
         {/*
           Edge interaction overrides:
           React Flow pan mode can prioritize drag cursors over edge cursors.
@@ -972,128 +992,131 @@ const ClarityGraphCanvasInner = ({
           }
         `}</style>
 
-        <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
-          <p>Canvas</p>
-          <div className="flex items-center gap-3">
-            <p>
-              {graphNodes.length} nodes · {resolvedConnections.length} AI links{" "}
-              {connectionsError ? " (analysis failed)" : ""}
-            </p>
-            <GraphCanvasControls
-              zoom={zoom}
-              onZoomOut={() => rfInstance?.zoomOut({ duration: 120 })}
-              onZoomIn={() => rfInstance?.zoomIn({ duration: 120 })}
-              onResetZoom={() =>
-                rfInstance?.setViewport({ x: 0, y: 0, zoom: 1 })
-              }
-            />
-          </div>
-        </div>
-
-        {connectionsError ? (
-          <p className="mb-2 text-xs text-destructive">{connectionsError}</p>
-        ) : null}
-
-        <div className="relative h-176 overflow-hidden rounded-lg border bg-background">
-          {loadingConnections ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-              <LoadingSpinner label="AI is analyzing nodes..." />
+        {/* Canvas area */}
+        <div className="flex-1 p-4 min-w-0">
+          <div className="mb-3 flex items-center justify-between text-xs text-stone-500">
+            <div className="flex items-center gap-3">
+              <p className="font-medium text-stone-700">Canvas</p>
+              <div className="h-3.5 w-px bg-stone-200" />
+              <p>
+                {graphNodes.length} nodes · {resolvedConnections.length} AI links
+                {connectionsError ? " (analysis failed)" : ""}
+              </p>
             </div>
+            <div className="flex items-center gap-3">
+              {/* Global clarity indicator */}
+              {globalStats.totalFragments > 0 && (
+                <div className="flex items-center gap-2 rounded-full bg-stone-50 border border-stone-200/60 px-2.5 py-1">
+                  <span className="text-[10px] text-stone-500">Clarity</span>
+                  <div className="w-12 h-1.5 rounded-full bg-stone-200/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${globalStats.percent}%`,
+                        backgroundColor:
+                          globalStats.percent >= 60
+                            ? "#12753e"
+                            : globalStats.percent >= 30
+                              ? "#d97706"
+                              : "#dc2626",
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-stone-600">
+                    {globalStats.percent}%
+                  </span>
+                  <span className="text-[10px] text-stone-400">
+                    {globalStats.strongNodes}/{globalStats.totalNodes} strong
+                  </span>
+                </div>
+              )}
+              <GraphCanvasControls
+                zoom={zoom}
+                onZoomOut={() => rfInstance?.zoomOut({ duration: 120 })}
+                onZoomIn={() => rfInstance?.zoomIn({ duration: 120 })}
+                onResetZoom={() =>
+                  rfInstance?.setViewport({ x: 0, y: 0, zoom: 1 })
+                }
+              />
+            </div>
+          </div>
+
+          {connectionsError ? (
+            <p className="mb-2 text-xs text-destructive">{connectionsError}</p>
           ) : null}
-          <ReactFlow
-            nodes={flowNodes}
-            edges={flowEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={{
-              padding: 0.15,
-              minZoom: MIN_ZOOM,
-              maxZoom: MAX_ZOOM,
-            }}
-            minZoom={MIN_ZOOM}
-            maxZoom={MAX_ZOOM}
-            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-            proOptions={{ hideAttribution: true }}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={false}
-            panOnDrag
-            zoomOnPinch
-            zoomOnScroll
-            onInit={(instance) => {
-              setRfInstance(instance);
-              setZoom(instance.getZoom());
-            }}
-            onMove={(_, viewport) => setZoom(viewport.zoom)}
-            onNodeClick={(_, node) => {
-              setSelectedConnectionId(null);
-              setSelectedNodeId(node.id);
-            }}
-            onEdgeClick={(_, edge) => {
-              setSelectedNodeId(null);
-              setSelectedConnectionId(edge.id);
-            }}
-            onPaneClick={() => {
-              setSelectedNodeId(null);
-              setSelectedConnectionId(null);
-            }}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              size={1.8}
-              gap={16}
-              color="rgba(100,116,139,0.52)"
-            />
-          </ReactFlow>
-          {/* Injecting styles via Panel to avoid module declaration issues with direct CSS imports in some environments */}
-          <Panel position="top-left" style={{ display: 'none' }}>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xyflow/react@12.3.0/dist/style.css" />
-          </Panel>
 
+          <div className="relative h-176 overflow-hidden rounded-lg border bg-background">
+            {loadingConnections ? (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+                <LoadingSpinner label="AI is analyzing nodes..." />
+              </div>
+            ) : null}
+            <ReactFlow
+              nodes={flowNodes}
+              edges={flowEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{
+                padding: 0.15,
+                minZoom: MIN_ZOOM,
+                maxZoom: MAX_ZOOM,
+              }}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
+              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+              proOptions={{ hideAttribution: true }}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              panOnDrag
+              zoomOnPinch
+              zoomOnScroll
+              onInit={(instance) => {
+                setRfInstance(instance);
+                setZoom(instance.getZoom());
+              }}
+              onMove={(_, viewport) => setZoom(viewport.zoom)}
+              onNodeClick={(_, node) => {
+                setSelectedConnectionId(null);
+                setSelectedNodeId(node.id);
+              }}
+              onEdgeClick={(_, edge) => {
+                setSelectedNodeId(null);
+                setSelectedConnectionId(edge.id);
+              }}
+              onPaneClick={() => {
+                setSelectedNodeId(null);
+                setSelectedConnectionId(null);
+              }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                size={1.8}
+                gap={16}
+                color="rgba(100,116,139,0.52)"
+              />
+            </ReactFlow>
 
-          <div className="pointer-events-none absolute bottom-2 right-2 rounded border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground">
-            Canvas area: {Math.round(logicalWidth)} x{" "}
-            {Math.round(logicalHeight)}
+            <div className="pointer-events-none absolute bottom-2 right-2 rounded border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground">
+              Canvas area: {Math.round(logicalWidth)} x{" "}
+              {Math.round(logicalHeight)}
+            </div>
           </div>
         </div>
-      </div>
 
-      <NodeDetailsSheet
-        open={Boolean(selectedNode)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedNodeId(null);
-          }
-        }}
-        title={selectedNode?.node.title ?? "Node"}
-        fragments={selectedNode?.nodeFragments ?? []}
-        fragmentTypeLabels={selectedNode?.labels ?? []}
-        dotClassByType={{
-          QUESTION: typeStyles.QUESTION.dot,
-          IDEA: typeStyles.IDEA.dot,
-          OBSERVATION: typeStyles.OBSERVATION.dot,
-          CONSTRAINS: typeStyles.CONSTRAINS.dot,
-          CONCLUSION: typeStyles.CONCLUSION.dot,
-          LEGAL_ELEMENT: typeStyles.LEGAL_ELEMENT.dot,
-          BINDING_AUTHORITY: typeStyles.BINDING_AUTHORITY.dot,
-          PERSUASIVE_AUTHORITY: typeStyles.PERSUASIVE_AUTHORITY.dot,
-          PROCEDURAL_FACT: typeStyles.PROCEDURAL_FACT.dot,
-          EVIDENTIARY_FACT: typeStyles.EVIDENTIARY_FACT.dot,
-        }}
-        fragmentTypeLabelByType={{
-          QUESTION: typeStyles.QUESTION.label,
-          IDEA: typeStyles.IDEA.label,
-          OBSERVATION: typeStyles.OBSERVATION.label,
-          CONSTRAINS: typeStyles.CONSTRAINS.label,
-          CONCLUSION: typeStyles.CONCLUSION.label,
-          LEGAL_ELEMENT: typeStyles.LEGAL_ELEMENT.label,
-          BINDING_AUTHORITY: typeStyles.BINDING_AUTHORITY.label,
-          PERSUASIVE_AUTHORITY: typeStyles.PERSUASIVE_AUTHORITY.label,
-          PROCEDURAL_FACT: typeStyles.PROCEDURAL_FACT.label,
-          EVIDENTIARY_FACT: typeStyles.EVIDENTIARY_FACT.label,
-        }}
-      />
+        {/* Insights panel - shows inline when a node is selected */}
+        {selectedNode && (
+          <ClarityInsightsPanel
+            problemSpaceId={problemSpaceId}
+            node={selectedNode.node}
+            fragments={fragments}
+            connections={aiConnections}
+            allNodes={graphNodes}
+            onClose={() => setSelectedNodeId(null)}
+          />
+        )}
+      </div>
 
       <Sheet
         open={Boolean(selectedConnection)}
@@ -1105,70 +1128,142 @@ const ClarityGraphCanvasInner = ({
       >
         <SheetContent side="right" className="sm:max-w-md p-0">
           <SheetHeader className="border-b">
-            <SheetTitle>Fragment Connection</SheetTitle>
+            <SheetTitle className="flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-[#12753e]" />
+              Fragment Connection
+            </SheetTitle>
           </SheetHeader>
 
           <div className="space-y-3 p-4">
             {selectedConnection ? (
               <>
+                {/* Strength badge */}
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      selectedConnection.strength === "STRONG"
+                        ? "bg-[#dff3e7] text-[#12753e]"
+                        : selectedConnection.strength === "MEDIUM"
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-stone-100 text-stone-500"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        selectedConnection.strength === "STRONG"
+                          ? "bg-[#12753e]"
+                          : selectedConnection.strength === "MEDIUM"
+                            ? "bg-blue-500"
+                            : "bg-stone-400"
+                      }`}
+                    />
+                    {selectedConnection.strength} connection
+                  </span>
+                </div>
+
+                {/* From fragment */}
                 <div
-                  className={`rounded-md border border-l-[3px] bg-card p-3 ${fragmentCardAccent[selectedConnection.fromPoint.fragment.type].border}`}
+                  className={`rounded-lg border border-l-[3px] bg-card p-3 ${fragmentCardAccent[selectedConnection.fromPoint.fragment.type].border}`}
                 >
-                  <p className="text-xs text-muted-foreground">From</p>
-                  <p className="text-sm font-medium mt-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                      From
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${fragmentCardAccent[selectedConnection.fromPoint.fragment.type].dot}`}
+                      />
+                      <span className="text-[10px] text-stone-400">
+                        {fragmentCardAccent[selectedConnection.fromPoint.fragment.type].label}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-medium text-stone-500 mt-1">
                     {selectedConnection.fromPoint.nodeTitle}
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full ${fragmentCardAccent[selectedConnection.fromPoint.fragment.type].dot}`}
-                    />
-                    <span className="text-[10px] tracking-wider text-muted-foreground">
-                      {
-                        fragmentCardAccent[
-                          selectedConnection.fromPoint.fragment.type
-                        ].label
-                      }
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
+                  <p className="text-xs text-stone-700 mt-1.5 leading-relaxed">
                     {selectedConnection.fromPoint.fragment.content}
                   </p>
                 </div>
 
+                {/* Arrow */}
+                <div className="flex justify-center">
+                  <div className="h-6 w-px bg-stone-200 relative">
+                    <ArrowRight className="absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 text-stone-300 rotate-90" />
+                  </div>
+                </div>
+
+                {/* To fragment */}
                 <div
-                  className={`rounded-md border border-l-[3px] bg-card p-3 ${fragmentCardAccent[selectedConnection.toPoint.fragment.type].border}`}
+                  className={`rounded-lg border border-l-[3px] bg-card p-3 ${fragmentCardAccent[selectedConnection.toPoint.fragment.type].border}`}
                 >
-                  <p className="text-xs text-muted-foreground">To</p>
-                  <p className="text-sm font-medium mt-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                      To
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${fragmentCardAccent[selectedConnection.toPoint.fragment.type].dot}`}
+                      />
+                      <span className="text-[10px] text-stone-400">
+                        {fragmentCardAccent[selectedConnection.toPoint.fragment.type].label}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-medium text-stone-500 mt-1">
                     {selectedConnection.toPoint.nodeTitle}
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full ${fragmentCardAccent[selectedConnection.toPoint.fragment.type].dot}`}
-                    />
-                    <span className="text-[10px] tracking-wider text-muted-foreground">
-                      {
-                        fragmentCardAccent[
-                          selectedConnection.toPoint.fragment.type
-                        ].label
-                      }
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
+                  <p className="text-xs text-stone-700 mt-1.5 leading-relaxed">
                     {selectedConnection.toPoint.fragment.content}
                   </p>
                 </div>
 
-                <div className="rounded-md border border-dashed border-primary/35 bg-primary/5 p-3">
-                  <p className="text-[11px] font-semibold tracking-wider text-primary">
-                    WHY CONNECTED
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                {/* Reason */}
+                <div className="rounded-lg border border-[#12753e]/15 bg-[#dff3e7]/30 p-3">
+                  <div className="flex items-center gap-1.5">
+                    <Lightbulb className="h-3 w-3 text-[#12753e]" />
+                    <p className="text-[10px] font-semibold text-[#12753e] uppercase tracking-wider">
+                      Why Connected
+                    </p>
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-relaxed text-stone-600">
                     {selectedConnection.reason}
                   </p>
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    Strength: {selectedConnection.strength}
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-2 pt-2">
+                  <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                    Actions
                   </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] font-medium text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                      onClick={() => {
+                        setSelectedConnectionId(null);
+                        if (selectedConnection) {
+                          setSelectedNodeId(selectedConnection.fromNodeId);
+                        }
+                      }}
+                    >
+                      <TrendingUp className="h-3 w-3 text-[#12753e]" />
+                      Build Argument
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] font-medium text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                      onClick={() => {
+                        setSelectedConnectionId(null);
+                        if (selectedConnection) {
+                          setSelectedNodeId(selectedConnection.fromNodeId);
+                        }
+                      }}
+                    >
+                      <AlertCircle className="h-3 w-3 text-amber-500" />
+                      Challenge Link
+                    </button>
+                  </div>
                 </div>
               </>
             ) : null}
@@ -1177,6 +1272,6 @@ const ClarityGraphCanvasInner = ({
       </Sheet>
     </>
   );
-};
+});
 
 export default ClarityGraphCanvasInner;

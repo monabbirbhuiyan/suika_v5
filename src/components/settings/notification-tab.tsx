@@ -11,7 +11,6 @@ type Prefs = {
   emailProblemSpaceActivity: boolean;
   emailProductUpdates: boolean;
   emailSecurityAlerts: boolean;
-  inAppAiSuggestions: boolean;
   inAppProblemProgress: boolean;
   inAppMilestones: boolean;
   digestFrequency: string;
@@ -22,7 +21,6 @@ const DEFAULTS: Prefs = {
   emailProblemSpaceActivity: false,
   emailProductUpdates: true,
   emailSecurityAlerts: true,
-  inAppAiSuggestions: true,
   inAppProblemProgress: true,
   inAppMilestones: true,
   digestFrequency: "weekly",
@@ -58,11 +56,6 @@ const EMAIL_ITEMS: SectionItem[] = [
 ];
 
 const INAPP_ITEMS: SectionItem[] = [
-  {
-    key: "inAppAiSuggestions",
-    label: "AI suggestions",
-    description: "Notify when new AI-weaving suggestions are ready to review.",
-  },
   {
     key: "inAppProblemProgress",
     label: "Problem space progress",

@@ -46,7 +46,6 @@ export const PATCH = async (request: Request) => {
     "emailProblemSpaceActivity",
     "emailProductUpdates",
     "emailSecurityAlerts",
-    "inAppAiSuggestions",
     "inAppProblemProgress",
     "inAppMilestones",
   ] as const;

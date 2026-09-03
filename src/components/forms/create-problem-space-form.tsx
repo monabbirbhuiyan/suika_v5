@@ -12,6 +12,7 @@ import { X } from "lucide-react";
 import { MdDescription, MdTitle } from "react-icons/md";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "../ui/form";
 import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 
 type Props = {
@@ -118,10 +119,11 @@ const CreateNewProblemSpaceForm = ({ open, onOpenChange }: Props) => {
                             <FormLabel>Description</FormLabel>
                             <FormControl>
                               <div className="relative group">
-                                <MdDescription className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300" />
-                                <Input
+                                <MdDescription className="absolute left-3 top-3 w-4 h-4 transition-colors duration-300" />
+                                <Textarea
                                   {...field}
-                                  className="transition-all duration-200 focus:scale-[1.01] pl-10"
+                                  rows={3}
+                                  className="transition-all duration-200 focus:scale-[1.01] pl-10 resize-none"
                                 />
                               </div>
                             </FormControl>

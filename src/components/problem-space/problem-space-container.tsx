@@ -35,11 +35,6 @@ const getFragmentTypeCount = (fragments?: Pick<Fragment, "type">[]) => {
     OBSERVATION: 0,
     CONSTRAINS: 0,
     CONCLUSION: 0,
-    LEGAL_ELEMENT: 0,
-    BINDING_AUTHORITY: 0,
-    PERSUASIVE_AUTHORITY: 0,
-    PROCEDURAL_FACT: 0,
-    EVIDENTIARY_FACT: 0,
   };
 
   if (!fragments || fragments.length === 0) {

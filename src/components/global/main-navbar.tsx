@@ -73,6 +73,14 @@ const getPageMeta = (pathname: string) => {
     };
   }
 
+  if (section === "datasets") {
+    return {
+      title: "Datasets",
+      subtitle:
+        "Manage your datasets efficiently. Open one to continue, or add a new dataset.",
+    };
+  }
+
   const title = section
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))

@@ -57,14 +57,9 @@ export const fragmentTypes = [
   "OBSERVATION",
   "CONSTRAINS",
   "CONCLUSION",
-  "LEGAL_ELEMENT",
-  "BINDING_AUTHORITY",
-  "PERSUASIVE_AUTHORITY",
-  "PROCEDURAL_FACT",
-  "EVIDENTIARY_FACT",
 ] as const;
 
-export const singleInstanceFragmentTypes = ["QUESTION", "LEGAL_ELEMENT"] as const;
+export const singleInstanceFragmentTypes = ["QUESTION"] as const;
 
 export const fragmentSchema = z.object({
   content: z.string().min(1, "Content is required"),

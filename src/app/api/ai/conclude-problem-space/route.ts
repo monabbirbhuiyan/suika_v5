@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getServerSession } from "@/action/get-session";
 import prisma from "@/lib/prisma";
 import { generateProblemSpaceConclusion } from "@/lib/ai";
+import { stableInputSignature } from "@/lib/cache-signature";
 
 export const runtime = "nodejs";
 
@@ -12,28 +12,14 @@ const requestSchema = z.object({
   defendingSide: z.enum(["PLAINTIFF", "DEFENDANT"]).optional(),
 });
 
-const stableInputSignature = (
-  input: Array<{
-    nodeId: string;
-    nodeTitle: string;
-    fragments: Array<{ id: string; type: string; content: string }>;
-  }>,
-) => {
-  const normalized = [...input]
-    .map((node) => ({
-      nodeId: node.nodeId,
-      nodeTitle: node.nodeTitle,
-      fragments: [...node.fragments]
-        .map((fragment) => ({
-          id: fragment.id,
-          type: fragment.type,
-          content: fragment.content.trim(),
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    }))
-    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+type ConclusionCache = {
+  PLAINTIFF?: unknown;
+  DEFENDANT?: unknown;
+};
 
-  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+type ConclusionSignatureCache = {
+  PLAINTIFF?: string;
+  DEFENDANT?: string;
 };
 
 export async function POST(request: Request) {
@@ -92,29 +78,63 @@ export async function POST(request: Request) {
       }))
       .filter((node) => node.fragments.length > 0);
 
-    const signature = stableInputSignature(input) + (parsed.data.defendingSide ? `::${parsed.data.defendingSide}` : "");
+    const fragmentMap: Record<string, { content: string; type: string }> = {};
+    for (const node of input) {
+      for (const frag of node.fragments) {
+        fragmentMap[frag.id] = { content: frag.content, type: frag.type };
+      }
+    }
 
-    if (
-      problemSpace.aiConclusionSignature === signature &&
-      problemSpace.aiConclusionCache
-    ) {
+    const side = parsed.data.defendingSide ?? "PLAINTIFF";
+    const inputSignature = stableInputSignature(input);
+    const sideSignature = `${inputSignature}::${side}`;
+
+    const existingCache = (problemSpace.aiConclusionCache ?? null) as ConclusionCache | null;
+    const existingSignatures = (problemSpace.aiConclusionSignature ?? null) as ConclusionSignatureCache | null;
+
+    const cachedSideSignature = existingSignatures?.[side];
+
+    if (cachedSideSignature === sideSignature && existingCache?.[side]) {
       return NextResponse.json({
-        result: problemSpace.aiConclusionCache,
+        result: existingCache[side],
+        fragmentMap,
         cached: true,
       });
     }
 
-    const result = await generateProblemSpaceConclusion(input, parsed.data.defendingSide);
+    const connectionsCache = (problemSpace.aiConnectionsCache ?? null) as Array<{
+      fromNodeId: string;
+      toNodeId: string;
+      fromFragmentId: string;
+      toFragmentId: string;
+      reason: string;
+      strength: string;
+    }> | null;
+
+    const result = await generateProblemSpaceConclusion(
+      input,
+      parsed.data.defendingSide,
+      connectionsCache ?? undefined,
+    );
+
+    const newCache: ConclusionCache = {
+      ...existingCache,
+      [side]: result,
+    };
+    const newSignatures: ConclusionSignatureCache = {
+      ...existingSignatures,
+      [side]: sideSignature,
+    };
 
     await prisma.problemSpace.update({
       where: { id: problemSpace.id },
       data: {
-        aiConclusionSignature: signature,
-        aiConclusionCache: result,
+        aiConclusionSignature: JSON.parse(JSON.stringify(newSignatures)),
+        aiConclusionCache: JSON.parse(JSON.stringify(newCache)),
       },
     });
 
-    return NextResponse.json({ result, cached: false });
+    return NextResponse.json({ result, fragmentMap, cached: false });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 

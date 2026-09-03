@@ -26,12 +26,7 @@ type FragmentType =
   | "IDEA"
   | "OBSERVATION"
   | "CONSTRAINS"
-  | "CONCLUSION"
-  | "LEGAL_ELEMENT"
-  | "BINDING_AUTHORITY"
-  | "PERSUASIVE_AUTHORITY"
-  | "PROCEDURAL_FACT"
-  | "EVIDENTIARY_FACT";
+  | "CONCLUSION";
 
 const fragmentTypeLabels: Record<FragmentType, string> = {
   QUESTION: "Questions",
@@ -39,19 +34,12 @@ const fragmentTypeLabels: Record<FragmentType, string> = {
   OBSERVATION: "Observations",
   CONSTRAINS: "Constraints",
   CONCLUSION: "Conclusions",
-  LEGAL_ELEMENT: "Legal Elements",
-  BINDING_AUTHORITY: "Binding Authorities",
-  PERSUASIVE_AUTHORITY: "Persuasive Authorities",
-  PROCEDURAL_FACT: "Procedural Facts",
-  EVIDENTIARY_FACT: "Evidentiary Facts",
 };
 
 const fragmentGroups: { label: string; types: FragmentType[]; color: string }[] = [
   { label: "Claims", types: ["IDEA", "CONCLUSION"], color: "bg-[#005b96]" },
   { label: "Evidence", types: ["OBSERVATION", "CONSTRAINS"], color: "bg-[#dc8b30]" },
   { label: "Questions", types: ["QUESTION"], color: "bg-primary" },
-  { label: "Legal", types: ["LEGAL_ELEMENT", "BINDING_AUTHORITY", "PERSUASIVE_AUTHORITY"], color: "bg-[#6d28d9]" },
-  { label: "Facts", types: ["PROCEDURAL_FACT", "EVIDENTIARY_FACT"], color: "bg-[#0891b2]" },
 ];
 
 const sortByUpdatedAtDesc = <T extends { updatedAt: Date }>(items: T[]) => {
@@ -122,11 +110,6 @@ const DashboardPage = async () => {
       OBSERVATION: 0,
       CONSTRAINS: 0,
       CONCLUSION: 0,
-      LEGAL_ELEMENT: 0,
-      BINDING_AUTHORITY: 0,
-      PERSUASIVE_AUTHORITY: 0,
-      PROCEDURAL_FACT: 0,
-      EVIDENTIARY_FACT: 0,
     } satisfies Record<FragmentType, number>,
   );
 

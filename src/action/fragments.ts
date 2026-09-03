@@ -1,8 +1,8 @@
 "use server";
-import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma";
 import prisma from "@/lib/prisma";
 import { decideProblemSpaceClarityProgress, generateClarityGraphConnections } from "@/lib/ai";
+import { stableInputSignature } from "@/lib/cache-signature";
 import { singleInstanceFragmentTypes } from "@/lib/schemas";
 import { getServerSession } from "./get-session";
 
@@ -15,30 +15,6 @@ const isUniqueConstraintError = (error: unknown) => {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
   );
-};
-
-const stableInputSignature = (
-  input: Array<{
-    nodeId: string;
-    nodeTitle: string;
-    fragments: Array<{ id: string; type: string; content: string }>;
-  }>,
-) => {
-  const normalized = [...input]
-    .map((node) => ({
-      nodeId: node.nodeId,
-      nodeTitle: node.nodeTitle,
-      fragments: [...node.fragments]
-        .map((fragment) => ({
-          id: fragment.id,
-          type: fragment.type,
-          content: fragment.content.trim(),
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    }))
-    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
-
-  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 };
 
 const refreshProblemSpaceProgress = async (problemSpaceId: string) => {
@@ -65,7 +41,27 @@ const refreshProblemSpaceProgress = async (problemSpaceId: string) => {
       .filter((node) => node.fragments.length > 0);
 
     const signature = stableInputSignature(input);
-    const suggestions = await generateClarityGraphConnections(input);
+
+    const current = await prisma.problemSpace.findUnique({
+      where: { id: problemSpaceId },
+      select: {
+        aiConnectionsSignature: true,
+        aiConnectionsCache: true,
+      },
+    });
+
+    let suggestions;
+    if (
+      current?.aiConnectionsSignature === signature &&
+      current.aiConnectionsCache
+    ) {
+      suggestions = current.aiConnectionsCache as Awaited<
+        ReturnType<typeof generateClarityGraphConnections>
+      >;
+    } else {
+      suggestions = await generateClarityGraphConnections(input);
+    }
+
     const progress = decideProblemSpaceClarityProgress(input, suggestions);
 
     await prisma.problemSpace.update({
@@ -87,7 +83,7 @@ export const createFragment = async (
     title?: string;
     content: string;
     nodeId: string;
-    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION" | "LEGAL_ELEMENT" | "BINDING_AUTHORITY" | "PERSUASIVE_AUTHORITY" | "PROCEDURAL_FACT" | "EVIDENTIARY_FACT";
+    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION";
   },
 ) => {
   const session = await getServerSession();
@@ -170,7 +166,7 @@ export const createFragment = async (
     throw error;
   }
 
-  await refreshProblemSpaceProgress(problemSpaceId);
+  void refreshProblemSpaceProgress(problemSpaceId);
 
   return fragment;
 };
@@ -253,8 +249,6 @@ export const createNode = async (
     },
   });
 
-  await refreshProblemSpaceProgress(problemSpaceId);
-
   return node;
 };
 
@@ -332,7 +326,7 @@ export const deleteNode = async (problemSpaceId: string, nodeId: string) => {
     },
   });
 
-  await refreshProblemSpaceProgress(problemSpaceId);
+  void refreshProblemSpaceProgress(problemSpaceId);
 
   return { success: true };
 };
@@ -342,7 +336,7 @@ export const updateFragment = async (
   fragmentId: string,
   data: {
     content: string;
-    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION" | "LEGAL_ELEMENT" | "BINDING_AUTHORITY" | "PERSUASIVE_AUTHORITY" | "PROCEDURAL_FACT" | "EVIDENTIARY_FACT";
+    type: "QUESTION" | "IDEA" | "OBSERVATION" | "CONSTRAINS" | "CONCLUSION";
   },
 ) => {
   const session = await getServerSession();
@@ -415,7 +409,7 @@ export const updateFragment = async (
     throw error;
   }
 
-  await refreshProblemSpaceProgress(problemSpaceId);
+  void refreshProblemSpaceProgress(problemSpaceId);
 
   return updatedFragment;
 };
@@ -454,7 +448,7 @@ export const deleteFragment = async (
     },
   });
 
-  await refreshProblemSpaceProgress(problemSpaceId);
+  void refreshProblemSpaceProgress(problemSpaceId);
 
   return { success: true };
 };
