@@ -6,7 +6,7 @@ import HeroSection from "@/components/landing/hero-section";
 import Navbar from "@/components/landing/navbar";
 import PhilosophySection from "@/components/landing/philosophy-section";
 import PricingSection from "@/components/landing/pricing-section";
-import { getServerSession } from "@/action/get-session";
+p
 
 export default async function Home() {
   const session = await getServerSession();
