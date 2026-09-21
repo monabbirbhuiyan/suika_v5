@@ -1,0 +1,11 @@
+# Environments
+.env
+.env.*
+
+# Python / Alembic
+__pycache__/
+.venv/
+alembic.ini
+
+#Miscellaniaous
+.DS_Store
