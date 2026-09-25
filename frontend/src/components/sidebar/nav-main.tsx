@@ -81,7 +81,6 @@ const Navmain = ({ userId }: Props) => {
             return (
               <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton
-                  asChild
                   tooltip={item.label}
                   isActive={isActive}
                   className={cn(

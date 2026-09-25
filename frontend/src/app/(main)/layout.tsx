@@ -1,27 +1,33 @@
+// src/app/(main)/layout.tsx
+import React from "react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { fetchFromBackend } from "@/lib/api";
+
 import AppSidebarContainer from "@/components/sidebar/app-sidebar-container";
 import MainNavbar from "@/components/global/main-navbar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { getServerSession } from "@/action/get-session";
-import prisma from "@/lib/prisma";
-import React from "react";
 
 type Props = {
   children: React.ReactNode;
 };
 
+type SubscriptionResponse = {
+  plan: string;
+};
+
 const MainLayout = async ({ children }: Props) => {
-  const session = await getServerSession();
+  // 1. Get session from Better Auth
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   const user = session?.user;
 
-  const subscription = user
-    ? await prisma.subscription.findUnique({
-        where: {
-          userId: user.id,
-        },
-        select: {
-          plan: true,
-        },
-      })
+  // 2. Fetch subscription from Python backend
+  const subscription = user?.id
+    ? await fetchFromBackend<SubscriptionResponse>(
+        `/api/v1/users/${user.id}/subscription`,
+      )
     : null;
 
   const planLabel = subscription?.plan
@@ -46,7 +52,7 @@ const MainLayout = async ({ children }: Props) => {
             userImage={user?.image}
             currentPlan={planLabel}
           />
-          <div className="p-0 md:p-4 pt-2 flex-1 ">{children}</div>
+          <div className="p-0 md:p-4 pt-2 flex-1">{children}</div>
         </main>
       </SidebarInset>
     </SidebarProvider>

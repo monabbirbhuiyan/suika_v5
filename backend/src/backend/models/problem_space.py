@@ -40,8 +40,27 @@ class Account(Base):
     providerId = Column(String, nullable=False)
     accessToken = Column(String, nullable=True)
     refreshToken = Column(String, nullable=True)
+    
+    # --- New Columns ---
+    idToken = Column(String, nullable=True)
+    accessTokenExpiresAt = Column(DateTime, nullable=True)
+    refreshTokenExpiresAt = Column(DateTime, nullable=True)
+    scope = Column(String, nullable=True)
+    password = Column(String, nullable=True)
+    
     createdAt = Column(DateTime, nullable=False)
     updatedAt = Column(DateTime, nullable=False)
+
+# --- New Table ---
+class Verification(Base):
+    __tablename__ = "verification"
+    
+    id = Column(String, primary_key=True)
+    identifier = Column(String, nullable=False)
+    value = Column(String, nullable=False)
+    expiresAt = Column(DateTime, nullable=False)
+    createdAt = Column(DateTime, nullable=True)
+    updatedAt = Column(DateTime, nullable=True)
 
 
 # --- SUIKA DOMAIN TABLES ---

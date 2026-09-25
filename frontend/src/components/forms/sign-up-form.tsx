@@ -1,6 +1,10 @@
 "use client";
-import { authClient } from "@/lib/auth-client";
-import { SignUpFormData, signUpSchema } from "@/lib/schemas";
+
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowRight,
@@ -12,12 +16,10 @@ import {
   UserIcon,
   X,
 } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+
+import { SignUpFormData, signUpSchema } from "@/lib/schemas";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -27,29 +29,26 @@ import {
   CardTitle,
 } from "../ui/card";
 import { Checkbox } from "../ui/checkbox";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../ui/form";
 import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import { Progress } from "../ui/progress";
-import { auth } from "@/lib/auth";
-import { getServerSession } from "@/action/get-session";
 import { FloatingCards } from "../global/floating-cards";
 
 const SignUpForm = () => {
   const router = useRouter();
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [focusedField, setFocusedField] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [currentStep, setCurrentStep] = React.useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
 
-  const form = useForm<SignUpFormData>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    control,
+    formState: { errors },
+  } = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
       name: "",
@@ -57,21 +56,18 @@ const SignUpForm = () => {
       password: "",
       terms: false,
     },
-
     mode: "onChange",
   });
 
-  const password = form.watch("password");
+  const password = watch("password") || "";
 
-  // Staggered animation for form fields
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentStep((prev) => (prev < 5 ? prev + 1 : prev));
     }, 100);
     return () => clearInterval(timer);
   }, []);
 
-  // Password strength calculation
   const getPasswordStrength = (pass: string) => {
     let strength = 0;
     if (pass.length >= 8) strength += 25;
@@ -102,19 +98,31 @@ const SignUpForm = () => {
     setIsLoading(true);
     setError(null);
 
-    const { data: session, error } = await authClient.signUp.email({
-      name: data.name,
-      email: data.email,
-      password: data.password,
-    });
+    const { data: session, error: signUpError } = await authClient.signUp.email(
+      {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+      },
+    );
 
     setIsLoading(false);
-    if (error) {
-      setError(error.message || "An error occurred during sign up.");
-      toast.error(error.message || "An error occurred during sign up.");
+    if (signUpError) {
+      const errorMsg =
+        signUpError.message || "An error occurred during sign up.";
+      setError(errorMsg);
+      toast.add({
+        type: "error",
+        description: errorMsg,
+        priority: "high",
+      });
     } else if (session?.user) {
-      toast.success("Account created successfully! Please check your email.");
-      router.push(`/dashboard`);
+      toast.add({
+        type: "Success",
+        description: "Account created succesfully. Please check your email.",
+      });
+      router.push("/dashboard");
+      router.refresh();
     }
   };
 
@@ -122,15 +130,21 @@ const SignUpForm = () => {
     setIsLoading(true);
     setError(null);
 
-    const { error } = await authClient.signIn.social({
+    const { error: socialError } = await authClient.signIn.social({
       provider,
-      callbackURL: `/dashboard`,
+      callbackURL: "/dashboard",
     });
 
-    setIsLoading(false);
-
-    if (error) {
-      setError(error.message || "Something went wrong. Please try again.");
+    if (socialError) {
+      setIsLoading(false);
+      const errorMsg =
+        socialError.message || "Something went wrong. Please try again.";
+      setError(errorMsg);
+      toast.add({
+        type: "error",
+        description: errorMsg,
+        priority: "high",
+      });
     }
   };
 
@@ -140,7 +154,13 @@ const SignUpForm = () => {
       <Card className="w-full max-w-md border border-(--brand-green)/20 bg-white/85 backdrop-blur-sm shadow-xl relative z-10">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-2 mx-auto">
-            <Image src={"/assets/logo.svg"} alt="Logo" width={30} height={30} />
+            <Image
+              src="/assets/logo.svg"
+              alt="Logo"
+              width={30}
+              height={30}
+              priority
+            />
             <span className="text-2xl font-semibold text-brand-ink">Suika</span>
           </div>
           <div className="text-center">
@@ -148,7 +168,7 @@ const SignUpForm = () => {
               Create an Account
             </CardTitle>
             <CardDescription className="text-[#5b766c]">
-              Start managing your problems more effeciently today.
+              Start managing your cases more efficiently today.
             </CardDescription>
           </div>
         </CardHeader>
@@ -157,8 +177,9 @@ const SignUpForm = () => {
           <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
-              className="w-full gap-2 bg-brand-red-100/55 border-(--brand-red)/30 text-brand-red-700 hover:bg-brand-red-100"
+              className="w-full gap-2 bg-brand-red-100/55 border-(--brand-red)/30 text-brand-red-700 hover:bg-brand-red-100 cursor-pointer"
               type="button"
+              disabled={isLoading}
               onClick={() => onSocialSubmit("google")}
             >
               <svg className="size-4" viewBox="0 0 24 24">
@@ -183,8 +204,9 @@ const SignUpForm = () => {
             </Button>
             <Button
               variant="outline"
-              className="w-full gap-2 bg-brand-green-100/55 border-(--brand-green)/30 text-brand-green-700 hover:bg-brand-green-100"
+              className="w-full gap-2 bg-brand-green-100/55 border-(--brand-green)/30 text-brand-green-700 hover:bg-brand-green-100 cursor-pointer"
               type="button"
+              disabled={isLoading}
               onClick={() => onSocialSubmit("github")}
             >
               <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
@@ -204,255 +226,247 @@ const SignUpForm = () => {
               </span>
             </div>
           </div>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Name Field */}
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-500 ${
-                      currentStep >= 0
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    } ${focusedField === "name" ? "scale-[1.02]" : ""}`}
-                  >
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
-                        <UserIcon
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                            focusedField === "name"
-                              ? "text-brand-green"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                        <Input
-                          {...field}
-                          type="text"
-                          placeholder="John Doe"
-                          className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
-                          onFocus={() => setFocusedField("name")}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            field.onBlur();
-                          }}
-                        />
-                      </div>
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
 
-              {/* Email field */}
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-500 ${
-                      currentStep >= 1
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    } ${focusedField === "email" ? "scale-[1.02]" : ""}`}
-                  >
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
-                        <MailIcon
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                            focusedField === "email"
-                              ? "text-brand-green"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                        <Input
-                          {...field}
-                          type="email"
-                          placeholder="you@mail.ca"
-                          className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
-                          onFocus={() => setFocusedField("email")}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            field.onBlur();
-                          }}
-                        />
-                      </div>
-                    </FormControl>
-
-                    <FormMessage className="text-xs animate-fade-in-up" />
-                  </FormItem>
-                )}
-              />
-
-              {/* Password field */}
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-500 ${
-                      currentStep >= 3
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    } ${focusedField === "password" ? "scale-[1.02]" : ""}`}
-                  >
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
-                        <LockIcon
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                            focusedField === "password"
-                              ? "text-brand-green"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                        <Input
-                          {...field}
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Create a strong password"
-                          className="pl-10 pr-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
-                          onFocus={() => setFocusedField("password")}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            field.onBlur();
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-ink transition-colors"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </FormControl>
-
-                    {/* Password strength indicator */}
-                    {password && (
-                      <div className="space-y-3 animate-fade-in-up">
-                        <div className="flex items-center gap-2">
-                          <Progress
-                            value={passwordStrength}
-                            className="h-1.5 flex-1"
-                          />
-                          <span
-                            className={`text-xs font-medium ${
-                              passwordStrength <= 25
-                                ? "text-destructive"
-                                : passwordStrength <= 50
-                                  ? "text-brand-red"
-                                  : passwordStrength <= 75
-                                    ? "text-brand-green-700"
-                                    : "text-brand-green"
-                            }`}
-                          >
-                            {strengthLabel}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {passwordRequirements.map((req, i) => (
-                            <div
-                              key={req.label}
-                              className={`flex items-center gap-1.5 text-xs transition-all duration-300 ${
-                                req.met
-                                  ? "text-brand-green"
-                                  : "text-muted-foreground"
-                              }`}
-                              style={{ animationDelay: `${i * 0.05}s` }}
-                            >
-                              {req.met ? (
-                                <Check className="w-3 h-3" />
-                              ) : (
-                                <X className="w-3 h-3" />
-                              )}
-                              {req.label}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <FormMessage className="text-xs animate-fade-in-up" />
-                  </FormItem>
-                )}
-              />
-              {/* Terms checkbox */}
-              <FormField
-                control={form.control}
-                name="terms"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-500 ${
-                      currentStep >= 4
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    }`}
-                  >
-                    <div className="flex items-start space-x-2">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          className="mt-1"
-                        />
-                      </FormControl>
-                      <FormLabel className="text-sm text-muted-foreground cursor-pointer leading-relaxed font-normal">
-                        I agree to the{" "}
-                        <Link
-                          href="/terms"
-                          className="text-brand-green hover:text-brand-green-700 hover:underline"
-                        >
-                          Terms of Service
-                        </Link>{" "}
-                        and{" "}
-                        <Link
-                          href="/privacy"
-                          className="text-brand-green hover:text-brand-green-700 hover:underline"
-                        >
-                          Privacy Policy
-                        </Link>
-                      </FormLabel>
-                    </div>
-                    <FormMessage className="text-xs animate-fade-in-up" />
-                  </FormItem>
-                )}
-              />
-
-              {/* Submit button */}
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-semibold group relative overflow-hidden bg-brand-green hover:bg-brand-green-700 text-white"
-                disabled={isLoading}
-              >
-                <span
-                  className={`inline-flex items-center gap-2 transition-all duration-300 ${
-                    isLoading ? "opacity-0" : "opacity-100"
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Name Field */}
+            <div
+              className={`space-y-1.5 transition-all duration-500 ${
+                currentStep >= 0
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4"
+              } ${focusedField === "name" ? "scale-[1.02]" : ""}`}
+            >
+              <Label htmlFor="name">Full Name</Label>
+              <div className="relative group">
+                <UserIcon
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === "name"
+                      ? "text-brand-green"
+                      : "text-muted-foreground"
                   }`}
+                />
+                <Input
+                  {...register("name")}
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
+                  onFocus={() => setFocusedField("name")}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </div>
+              {errors.name && (
+                <p className="text-xs text-destructive">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Email Field */}
+            <div
+              className={`space-y-1.5 transition-all duration-500 ${
+                currentStep >= 1
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4"
+              } ${focusedField === "email" ? "scale-[1.02]" : ""}`}
+            >
+              <Label htmlFor="email">Email</Label>
+              <div className="relative group">
+                <MailIcon
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === "email"
+                      ? "text-brand-green"
+                      : "text-muted-foreground"
+                  }`}
+                />
+                <Input
+                  {...register("email")}
+                  id="email"
+                  type="email"
+                  placeholder="counsel@firm.com"
+                  className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </div>
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            {/* Password Field */}
+            <div
+              className={`space-y-1.5 transition-all duration-500 ${
+                currentStep >= 3
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4"
+              } ${focusedField === "password" ? "scale-[1.02]" : ""}`}
+            >
+              <Label htmlFor="password">Password</Label>
+              <div className="relative group">
+                <LockIcon
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === "password"
+                      ? "text-brand-green"
+                      : "text-muted-foreground"
+                  }`}
+                />
+                <Input
+                  {...register("password")}
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a strong password"
+                  className="pl-10 pr-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-ink transition-colors cursor-pointer"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  Create account
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </span>
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Password strength indicator */}
+              {password && (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Progress
+                      value={passwordStrength}
+                      className="h-1.5 flex-1"
+                    />
+                    <span
+                      className={`text-xs font-medium ${
+                        passwordStrength <= 25
+                          ? "text-destructive"
+                          : passwordStrength <= 50
+                            ? "text-brand-red"
+                            : passwordStrength <= 75
+                              ? "text-brand-green-700"
+                              : "text-brand-green"
+                      }`}
+                    >
+                      {strengthLabel}
+                    </span>
                   </div>
-                )}
-              </Button>
-            </form>
-          </Form>
+                  <div className="grid grid-cols-2 gap-2">
+                    {passwordRequirements.map((req) => (
+                      <div
+                        key={req.label}
+                        className={`flex items-center gap-1.5 text-xs transition-all duration-300 ${
+                          req.met ? "text-brand-green" : "text-muted-foreground"
+                        }`}
+                      >
+                        {req.met ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <X className="w-3 h-3" />
+                        )}
+                        {req.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* Terms Checkbox */}
+            <div
+              className={`transition-all duration-500 ${
+                currentStep >= 4
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4"
+              }`}
+            >
+              <div className="flex items-start space-x-2">
+                <Controller
+                  control={control}
+                  name="terms"
+                  render={({ field }) => (
+                    <Checkbox
+                      id="terms"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-1"
+                    />
+                  )}
+                />
+                <Label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground cursor-pointer leading-relaxed font-normal"
+                >
+                  I agree to the{" "}
+                  <Link
+                    href="/terms"
+                    className="text-brand-green hover:text-brand-green-700 hover:underline"
+                  >
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/privacy"
+                    className="text-brand-green hover:text-brand-green-700 hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                </Label>
+              </div>
+              {errors.terms && (
+                <p className="text-xs text-destructive mt-1.5">
+                  {errors.terms.message}
+                </p>
+              )}
+            </div>
+
+            {/* Global Error Banner */}
+            {error && (
+              <p className="text-xs text-destructive text-center">{error}</p>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full h-12 text-base font-semibold group relative overflow-hidden bg-brand-green hover:bg-brand-green-700 text-white cursor-pointer"
+              disabled={isLoading}
+            >
+              <span
+                className={`inline-flex items-center gap-2 transition-all duration-300 ${
+                  isLoading ? "opacity-0" : "opacity-100"
+                }`}
+              >
+                Create account
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </span>
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
+            </Button>
+          </form>
+
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <button
-              type="button"
+            <Link
+              href="/sign-in"
               className="text-brand-green font-medium hover:text-brand-green-700 hover:underline"
             >
-              <Link href="/sign-in">Sign in</Link>
-            </button>
+              Sign in
+            </Link>
           </p>
         </CardContent>
       </Card>

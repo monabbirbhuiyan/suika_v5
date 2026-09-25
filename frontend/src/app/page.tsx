@@ -6,10 +6,15 @@ import HeroSection from "@/components/landing/hero-section";
 import Navbar from "@/components/landing/navbar";
 import PhilosophySection from "@/components/landing/philosophy-section";
 import PricingSection from "@/components/landing/pricing-section";
-p
+
+//BetterAuth
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export default async function Home() {
-  const session = await getServerSession();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   const user = session?.user ?? null;
 
   return (

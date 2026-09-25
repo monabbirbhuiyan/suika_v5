@@ -1,6 +1,13 @@
 "use client";
-import { useRouter } from "next/navigation";
+
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -8,38 +15,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import Link from "next/link";
-import { ArrowRight, Eye, EyeOff, Lock, Mail, Network } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/toast";
+import { FloatingCards } from "../global/floating-cards";
+
 import { SignInFormData, signInSchema } from "@/lib/schemas";
 import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../ui/form";
-import { Checkbox } from "../ui/checkbox";
-import { Separator } from "../ui/separator";
-import { getServerSession } from "@/action/get-session";
-import { FloatingCards } from "../global/floating-cards";
-import Image from "next/image";
 
 const SignInForm = () => {
   const router = useRouter();
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [focusedField, setFocusedField] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const form = useForm<SignInFormData>({
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+  } = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
       email: "",
@@ -52,31 +51,44 @@ const SignInForm = () => {
     setIsLoading(true);
     setError(null);
 
-    const { data: session, error } = await authClient.signIn.email({
-      email: data.email,
-      password: data.password,
-      rememberMe: data.rememberMe,
-    });
-
-    const user = session?.user;
+    const { data: session, error: signInError } = await authClient.signIn.email(
+      {
+        email: data.email,
+        password: data.password,
+        rememberMe: data.rememberMe,
+      },
+    );
 
     setIsLoading(false);
-    if (error) {
-      setError(error.message || "Something went wrong. Please try again.");
-      toast.error(error.message || "Something went wrong. Please try again.");
-    } else if (session?.user) {
-      toast.success("Successfully signed in!");
-      // Persist remember preference for client-side recovery
+
+    if (signInError) {
+      const errorMsg =
+        signInError.message || "Something went wrong. Please try again.";
+      setError(errorMsg);
+      toast.add({
+        type: "error",
+        description: errorMsg,
+        priority: "high",
+      });
+      return;
+    }
+
+    if (session?.user) {
+      toast.add({
+        type: "success",
+        description: "Successfully signed in.",
+      });
       try {
         if (data.rememberMe) {
           localStorage.setItem("suika_remember", "true");
         } else {
           localStorage.removeItem("suika_remember");
         }
-      } catch (e) {
-        // ignore (SSR safety not needed here in client component)
+      } catch {
+        // Safe failover for restricted storage
       }
-      router.push(`/dashboard`);
+      router.push("/dashboard");
+      router.refresh();
     }
   };
 
@@ -84,17 +96,21 @@ const SignInForm = () => {
     setIsLoading(true);
     setError(null);
 
-    const session = await getServerSession();
-
-    const { error } = await authClient.signIn.social({
+    const { error: socialError } = await authClient.signIn.social({
       provider,
-      callbackURL: `/dashboard`,
+      callbackURL: "/dashboard",
     });
 
-    setIsLoading(false);
-
-    if (error) {
-      setError(error.message || "Something went wrong. Please try again.");
+    if (socialError) {
+      setIsLoading(false);
+      const errorMsg =
+        socialError.message || "Social sign-in failed. Please try again.";
+      setError(errorMsg);
+      toast.add({
+        type: "error",
+        description: errorMsg,
+        priority: "high",
+      });
     }
   };
 
@@ -105,8 +121,13 @@ const SignInForm = () => {
       <Card className="w-full max-w-md border border-(--brand-green)/20 bg-white/85 backdrop-blur-sm shadow-xl relative z-10">
         <CardHeader className="space-y-4">
           <div className="flex items-center gap-2 mx-auto">
-            <Image src={"/assets/logo.svg"} alt="Logo" width={30} height={30} />
-
+            <Image
+              src="/assets/logo.svg"
+              alt="Logo"
+              width={30}
+              height={30}
+              priority
+            />
             <span className="text-2xl font-semibold text-brand-ink">Suika</span>
           </div>
           <div className="text-center">
@@ -114,162 +135,153 @@ const SignInForm = () => {
               Welcome back
             </CardTitle>
             <CardDescription className="text-[#5b766c]">
-              Sign in to continue your exploration
+              Sign in to continue your legal workspace
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-300 ${
-                      focusedField === "email" ? "scale-[1.02]" : ""
-                    }`}
-                  >
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
-                        <Mail
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                            focusedField === "email"
-                              ? "text-brand-green"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                        <Input
-                          {...field}
-                          type="email"
-                          placeholder="you@university.edu"
-                          className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
-                          onFocus={() => setFocusedField("email")}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            field.onBlur();
-                          }}
-                        />
-                        <div
-                          className={`absolute inset-0 rounded-md bg-brand-green/5 -z-10 transition-opacity duration-300 ${
-                            focusedField === "email"
-                              ? "opacity-100"
-                              : "opacity-0"
-                          }`}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-xs animate-fade-in-up" />
-                  </FormItem>
-                )}
-              />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Email Field */}
+            <div
+              className={`space-y-1.5 transition-all duration-300 ${
+                focusedField === "email" ? "scale-[1.02]" : ""
+              }`}
+            >
+              <Label htmlFor="email">Email</Label>
+              <div className="relative group">
+                <Mail
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === "email"
+                      ? "text-brand-green"
+                      : "text-muted-foreground"
+                  }`}
+                />
+                <Input
+                  {...register("email")}
+                  id="email"
+                  type="email"
+                  placeholder="counsel@firm.com"
+                  className="pl-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                <div
+                  className={`absolute inset-0 rounded-md bg-brand-green/5 -z-10 transition-opacity duration-300 ${
+                    focusedField === "email" ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </div>
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
 
-              {/* Password field */}
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem
-                    className={`transition-all duration-300 ${
-                      focusedField === "password" ? "scale-[1.02]" : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <FormLabel>Password</FormLabel>
-                      <Link
-                        href="/forgot-password"
-                        className="text-xs text-brand-green hover:text-brand-green-700 transition-colors"
-                      >
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <FormControl>
-                      <div className="relative group">
-                        <Lock
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                            focusedField === "password"
-                              ? "text-brand-green"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                        <Input
-                          {...field}
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Enter your password"
-                          className="pl-10 pr-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
-                          onFocus={() => setFocusedField("password")}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            field.onBlur();
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-ink transition-colors"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                        <div
-                          className={`absolute inset-0 rounded-md bg-brand-green/5 -z-10 transition-opacity duration-300 ${
-                            focusedField === "password"
-                              ? "opacity-100"
-                              : "opacity-0"
-                          }`}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-xs animate-fade-in-up" />
-                  </FormItem>
-                )}
-              />
+            {/* Password Field */}
+            <div
+              className={`space-y-1.5 transition-all duration-300 ${
+                focusedField === "password" ? "scale-[1.02]" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-brand-green hover:text-brand-green-700 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative group">
+                <Lock
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === "password"
+                      ? "text-brand-green"
+                      : "text-muted-foreground"
+                  }`}
+                />
+                <Input
+                  {...register("password")}
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10 h-12 border-(--brand-green)/20 bg-white transition-all duration-300 focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green/40"
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-ink transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+                <div
+                  className={`absolute inset-0 rounded-md bg-brand-green/5 -z-10 transition-opacity duration-300 ${
+                    focusedField === "password" ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </div>
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
 
-              {/* Remember me */}
-              <FormField
-                control={form.control}
+            {/* Remember Me */}
+            <div className="flex items-center space-x-2">
+              <Controller
+                control={control}
                 name="rememberMe"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormLabel className="text-sm text-muted-foreground cursor-pointer font-normal">
-                      Remember me for 30 days
-                    </FormLabel>
-                  </FormItem>
+                  <Checkbox
+                    id="rememberMe"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
                 )}
               />
-
-              {/* Submit button */}
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-semibold group relative overflow-hidden bg-brand-green hover:bg-brand-green-700 text-white"
-                disabled={isLoading}
+              <Label
+                htmlFor="rememberMe"
+                className="text-sm text-muted-foreground cursor-pointer font-normal"
               >
-                <span
-                  className={`inline-flex items-center gap-2 transition-all duration-300 ${
-                    isLoading ? "opacity-0" : "opacity-100"
-                  }`}
-                >
-                  Sign in
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </span>
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  </div>
-                )}
-              </Button>
-            </form>
-          </Form>
+                Remember me for 30 days
+              </Label>
+            </div>
+
+            {/* Global Error Banner */}
+            {error && (
+              <p className="text-xs text-destructive text-center">{error}</p>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full h-12 text-base font-semibold group relative overflow-hidden bg-brand-green hover:bg-brand-green-700 text-white cursor-pointer"
+              disabled={isLoading}
+            >
+              <span
+                className={`inline-flex items-center gap-2 transition-all duration-300 ${
+                  isLoading ? "opacity-0" : "opacity-100"
+                }`}
+              >
+                Sign in
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </span>
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
+            </Button>
+          </form>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -280,12 +292,13 @@ const SignInForm = () => {
             </div>
           </div>
 
-          {/* Social login buttons */}
+          {/* Social Logins */}
           <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
-              className="w-full gap-2 bg-brand-red-100/55 border-(--brand-red)/30 text-brand-red-700 hover:bg-brand-red-100"
+              className="w-full gap-2 bg-brand-red-100/55 border-(--brand-red)/30 text-brand-red-700 hover:bg-brand-red-100 cursor-pointer"
               type="button"
+              disabled={isLoading}
               onClick={() => onSocialSubmit("google")}
             >
               <svg className="size-4" viewBox="0 0 24 24">
@@ -310,8 +323,9 @@ const SignInForm = () => {
             </Button>
             <Button
               variant="outline"
-              className="w-full gap-2 bg-brand-green-100/55 border-(--brand-green)/30 text-brand-green-700 hover:bg-brand-green-100"
+              className="w-full gap-2 bg-brand-green-100/55 border-(--brand-green)/30 text-brand-green-700 hover:bg-brand-green-100 cursor-pointer"
               type="button"
+              disabled={isLoading}
               onClick={() => onSocialSubmit("github")}
             >
               <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">

@@ -4,7 +4,7 @@ from typing import List
 
 from backend.core.database import get_db
 from backend.models.problem_space import ProblemSpace
-from backend.schemas.problem_space import ProblemSpaceCreate, ProblemSpaceResponse
+from backend.schemas.problem_spaces import ProblemSpaceCreate, ProblemSpaceResponse
 
 router = APIRouter()
 

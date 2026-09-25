@@ -61,6 +61,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
+    { name = "sqlmodel" },
     { name = "uvicorn" },
 ]
 
@@ -75,6 +76,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "sqlalchemy", specifier = ">=2.0.54" },
+    { name = "sqlmodel", specifier = ">=0.0.45" },
     { name = "uvicorn", specifier = ">=0.53.0" },
 ]
 
@@ -941,6 +943,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/df/c0/b5775465d3b89061d7c46057c31c56ff8fb6c509550b2b0c6570ffc248b3/sqlalchemy-2.0.54-cp314-cp314t-win32.whl", hash = "sha256:b9086b8ad48280ef6a7ba68262d5e44f7db1c4cb1973e8cdae8a9f467ae66f51", size = 2174794, upload-time = "2026-09-15T22:31:45.925Z" },
     { url = "https://files.pythonhosted.org/packages/77/f8/296c2e46b4ccd3f29b00b954ef2f195dde32f98e352ed21de1d292cedc0d/sqlalchemy-2.0.54-cp314-cp314t-win_amd64.whl", hash = "sha256:b67c1744e453af833667fc1b84de07adb4a64f3536ef52a8ec5ac2b941d43970", size = 2211942, upload-time = "2026-09-15T22:31:47.368Z" },
     { url = "https://files.pythonhosted.org/packages/24/a1/bd5e3e99bc9c8863b51ac5b9b03008a7f2da8c6b59695992f5c654e1265b/sqlalchemy-2.0.54-py3-none-any.whl", hash = "sha256:7e33a631ab1474f8fe6b910bd1a07b7b8009c4c78cdd3fb18001b03e3bc2e1d2", size = 1958015, upload-time = "2026-09-15T22:24:22.95Z" },
+]
+
+[[package]]
+name = "sqlmodel"
+version = "0.0.45"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sqlalchemy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/05/2883610972556b37dcbe6e98cdf81f0117bd78f2abc7bf42864d27218611/sqlmodel-0.0.45.tar.gz", hash = "sha256:cd9761e964400311c2fb8f052b8adba4fa8ed569c4681d4573763d12d5efc91e", size = 97782, upload-time = "2026-09-21T21:51:54.149Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/68/95308ae84de8a4cb07ab32ec961e17f274a4d503393e62e61d702b47f488/sqlmodel-0.0.45-py3-none-any.whl", hash = "sha256:f5abab62baea9a0d2c2483b8511e3a581b245f1e2fc78c92b49f84e0c5c66302", size = 31217, upload-time = "2026-09-21T21:51:53.29Z" },
 ]
 
 [[package]]

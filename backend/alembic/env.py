@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 # 2. Use the exact same 'backend' imports your models are using
 from backend.core.database import Base
-from backend.models.problem_space import User, ProblemSpace, Node
+from backend.models.problem_space import User, ProblemSpace, Node, Verification, Account
 from backend.models.graph import Edge, Fragment
 from backend.models.legal import Dataset, CaseStudy
 from backend.models.settings import NotificationPreference, PrivacyPreference
@@ -18,7 +18,7 @@ from backend.models.settings import NotificationPreference, PrivacyPreference
 # Force the IDE to register the models
 __models__ = [
     User, ProblemSpace, Node, Edge, Fragment, Dataset, CaseStudy,
-    NotificationPreference, PrivacyPreference
+    NotificationPreference, PrivacyPreference, Verification, Account
 ]
 
 config = context.config

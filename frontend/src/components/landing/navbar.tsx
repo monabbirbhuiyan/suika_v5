@@ -1,74 +1,58 @@
 "use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import React, { useEffect } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../ui/button";
 import { Menu, X } from "lucide-react";
-import { User } from "@/generated/prisma";
 import { authClient } from "@/lib/auth-client";
 
-type Props = {
-  user: User | null;
+type UserType = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
 };
 
-const Navbar = ({ user }: Props) => {
-  const [isScrolled, setIsScrolled] = React.useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+type Props = {
+  user?: UserType | null;
+};
+
+const Navbar = ({ user: initialUser = null }: Props) => {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(initialUser);
 
   useEffect(() => {
-    console.log("Navbar user:", user);
-  }, [user]);
-
-  // Client-side recovery: if the page rendered without a user but
-  // the user previously chose "remember me", attempt to fetch
-  // session client-side and show the authenticated button.
-  const [clientUser, setClientUser] = React.useState<User | null | undefined>(
-    user,
-  );
-
-  useEffect(() => {
-    if (clientUser) return; // already have user
-
-    let remember = false;
-    try {
-      remember = localStorage.getItem("suika_remember") === "true";
-    } catch (e) {
-      remember = false;
+    if (initialUser) {
+      setCurrentUser(initialUser);
     }
+  }, [initialUser]);
 
-    if (!remember) return;
+  useEffect(() => {
+    if (currentUser) return;
 
-    async function recover() {
+    async function recoverSession() {
       try {
-        // try common authClient session getters (library may expose one)
-        // try `getSession`, then `session` as a fallback
-        // any method that returns { data: { user } } or { user } is handled
-        let sess: any = null;
-        if (typeof (authClient as any).getSession === "function") {
-          sess = await (authClient as any).getSession();
-        } else if (typeof (authClient as any).session === "function") {
-          sess = await (authClient as any).session();
+        const { data } = await authClient.getSession();
+        if (data?.user) {
+          setCurrentUser(data.user as UserType);
         }
-
-        const foundUser = sess?.data?.user ?? sess?.user ?? null;
-        if (foundUser) setClientUser(foundUser as User);
-      } catch (e) {
-        // ignore failures silently
+      } catch {
+        // Silently fail if session recovery is not active
       }
     }
 
-    recover();
-  }, [clientUser]);
+    recoverSession();
+  }, [currentUser]);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener("scroll", handleScroll);
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const navlinks = [
@@ -77,9 +61,18 @@ const Navbar = ({ user }: Props) => {
     { label: "Philosophy", href: "#philosophy" },
   ];
 
+  const dashboardUrl = currentUser
+    ? `/dashboard/${currentUser.id}`
+    : "/sign-up";
+  const ctaLabel = currentUser ? "Go to Dashboard" : "Get Started";
+
   return (
     <motion.nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-brand-surface/85 backdrop-blur-lg shadow-sm border-b border-(--brand-green)/15" : "bg-transparent"}`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        isScrolled
+          ? "bg-brand-surface/85 backdrop-blur-lg shadow-sm border-b border-(--brand-green)/15"
+          : "bg-transparent"
+      }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -87,13 +80,18 @@ const Navbar = ({ user }: Props) => {
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-
-          <Link
-            href="/"
-            className="flex flex-row gap-2 items-center justify-between"
-          >
-            <Image src="/assets/logo.svg" alt="Suika" width={30} height={30} />
-            <span className="text-2xl font-light text-brand-ink">SUIKA</span>
+          <Link href="/" className="flex flex-row gap-2 items-center">
+            <Image
+              src="/assets/logo.svg"
+              alt="Suika Logo"
+              width={30}
+              height={30}
+              priority
+              className="h-[30px] w-[30px]"
+            />
+            <span className="text-2xl font-light tracking-wide text-brand-ink">
+              SUIKA
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -109,19 +107,21 @@ const Navbar = ({ user }: Props) => {
             ))}
           </div>
 
-          {/* CTA */}
+          {/* Desktop CTA */}
           <div className="hidden md:block">
-            <Link href="/sign-up">
-              <Button className="bg-brand-green hover:bg-brand-green-700 text-white rounded-full px-6 hover:cursor-pointer">
-                Get Started
+            <Link href={dashboardUrl}>
+              <Button className="bg-brand-green hover:bg-brand-green-700 text-white rounded-full px-6 cursor-pointer">
+                {ctaLabel}
               </Button>
             </Link>
           </div>
 
-          {/* Mobile Menu Toogle */}
+          {/* Mobile Menu Toggle */}
           <button
-            className="md:hidden text-brand-ink"
+            type="button"
+            className="md:hidden text-brand-ink cursor-pointer p-1"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {isMobileMenuOpen ? (
               <X className="w-6 h-6" />
@@ -132,39 +132,38 @@ const Navbar = ({ user }: Props) => {
         </div>
 
         {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden mt-4 pt-4 border-t border-(--brand-green)/20"
-          >
-            <div className="flex flex-col gap-4">
-              {navlinks.map((link) => (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="text-sm text-[#557367] hover:text-brand-green transition-colors"
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden mt-4 pt-4 border-t border-(--brand-green)/20 overflow-hidden"
+            >
+              <div className="flex flex-col gap-4">
+                {navlinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    className="text-sm text-[#557367] hover:text-brand-green transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+
+                <Link
+                  href={dashboardUrl}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  {link.label}
-                </a>
-              ))}
-
-              <Link
-                href={
-                  clientUser || user
-                    ? `/dashboard/${(clientUser || user)!.id}`
-                    : "/sign-up"
-                }
-              >
-                <Button className="w-full bg-brand-green hover:bg-brand-green-700 text-white rounded-full">
-                  {clientUser || user ? "Dashboard" : "Get Started"}
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        )}
+                  <Button className="w-full bg-brand-green hover:bg-brand-green-700 text-white rounded-full cursor-pointer">
+                    {ctaLabel}
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.nav>
   );

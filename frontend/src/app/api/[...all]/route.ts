@@ -1,6 +1,4 @@
-import { auth } from "@/lib/auth"; // Adjust import path if necessary
-import { toNodeHandler } from "better-auth/node";
+import { auth } from "@/lib/auth";
+import { toNextJsHandler } from "better-auth/next-js";
 
-const handler = toNodeHandler(auth);
-
-export { handler as GET, handler as POST };
+export const { GET, POST } = toNextJsHandler(auth);
