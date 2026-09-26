@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Database,
   ExternalLink,
@@ -13,17 +13,17 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  AlertCircle,
   Scale,
   BookOpen,
   FileText,
   Landmark,
 } from "lucide-react";
-import { toast } from "sonner";
+import { motion } from "framer-motion";
+
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -40,7 +40,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { motion } from "framer-motion";
 
 type Props = {
   userId: string;
@@ -140,12 +139,24 @@ const jurisdictionLabels: Record<string, string> = {
 function DatasetRowSkeleton() {
   return (
     <tr>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-4 rounded" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-48" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-4 rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-48" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-32" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-5 w-16 rounded-full" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-5 w-16 rounded-full" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-20" />
+      </td>
     </tr>
   );
 }
@@ -155,7 +166,7 @@ function SyncLogRow({ log }: { log: SyncLog }) {
   const StatusIcon = config.icon;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-(--brand-green)/10 bg-white px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-green/10 bg-white px-3 py-2">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <StatusIcon className="h-3.5 w-3.5 shrink-0" />
@@ -182,31 +193,31 @@ function SyncLogRow({ log }: { log: SyncLog }) {
 }
 
 const DatasetsClient = ({ userId }: Props) => {
-  const [datasets, setDatasets] = React.useState<CanLIIDataset[]>([]);
-  const [pagination, setPagination] = React.useState<Pagination>({
+  const [datasets, setDatasets] = useState<CanLIIDataset[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 20,
     total: 0,
     totalPages: 0,
   });
-  const [dbStats, setDbStats] = React.useState<{
+  const [dbStats, setDbStats] = useState<{
     total: number;
     byType: Record<string, number>;
     synced: number;
     failed: number;
   }>({ total: 0, byType: {}, synced: 0, failed: 0 });
-  const [loading, setLoading] = React.useState(true);
-  const [syncing, setSyncing] = React.useState(false);
-  const [syncLogs, setSyncLogs] = React.useState<SyncLog[]>([]);
-  const [logsLoading, setLogsLoading] = React.useState(false);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [jurisdictionFilter, setJurisdictionFilter] = React.useState("all");
-  const [documentTypeFilter, setDocumentTypeFilter] = React.useState("all");
-  const [syncStatusFilter, setSyncStatusFilter] = React.useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState("all");
+  const [syncStatusFilter, setSyncStatusFilter] = useState("all");
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -214,7 +225,7 @@ const DatasetsClient = ({ userId }: Props) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const fetchDatasets = React.useCallback(async () => {
+  const fetchDatasets = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -228,15 +239,24 @@ const DatasetsClient = ({ userId }: Props) => {
       if (syncStatusFilter && syncStatusFilter !== "all")
         params.set("syncStatus", syncStatusFilter);
 
-      const response = await fetch(`/api/datasets/canlii?${params.toString()}`);
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/datasets/canlii?${params.toString()}`,
+      );
       if (!response.ok) throw new Error("Failed to fetch datasets");
 
       const data = await response.json();
-      setDatasets(data.datasets);
-      setPagination(data.pagination);
+      setDatasets(data.datasets || []);
+      setPagination(
+        data.pagination || { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      );
       if (data.stats) setDbStats(data.stats);
-    } catch {
-      toast.error("Failed to load datasets");
+    } catch (err) {
+      console.error("FastAPI Datasets error:", err);
+      toast.add({
+        type: "error",
+        description: "Failed to load datasets via Python backend.",
+        priority: "high",
+      });
     } finally {
       setLoading(false);
     }
@@ -249,19 +269,24 @@ const DatasetsClient = ({ userId }: Props) => {
     syncStatusFilter,
   ]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     void fetchDatasets();
   }, [fetchDatasets]);
 
-  const fetchSyncLogs = React.useCallback(async () => {
+  const fetchSyncLogs = useCallback(async () => {
     setLogsLoading(true);
     try {
-      const response = await fetch("/api/datasets/canlii/sync");
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/datasets/canlii/sync",
+      );
       if (!response.ok) throw new Error("Failed to fetch sync logs");
       const data = await response.json();
-      setSyncLogs(data.logs);
+      setSyncLogs(data.logs || []);
     } catch {
-      toast.error("Failed to load sync history");
+      toast.add({
+        type: "error",
+        description: "Failed to load sync history.",
+      });
     } finally {
       setLogsLoading(false);
     }
@@ -270,21 +295,34 @@ const DatasetsClient = ({ userId }: Props) => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const response = await fetch("/api/datasets/canlii/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/datasets/canlii/sync",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to start sync");
+        const errPayload = await response.json().catch(() => ({}));
+        throw new Error(errPayload.detail || "Failed to start sync");
       }
 
-      toast.success("Sync started successfully");
+      toast.add({
+        type: "success",
+        description: "CanLII sync initiated on backend.",
+      });
+
       void fetchSyncLogs();
+      void fetchDatasets();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sync failed");
+      const msg = err instanceof Error ? err.message : "Sync failed";
+      toast.add({
+        type: "error",
+        description: msg,
+        priority: "high",
+      });
     } finally {
       setSyncing(false);
     }
@@ -299,7 +337,7 @@ const DatasetsClient = ({ userId }: Props) => {
   return (
     <div className="space-y-4">
       {/* Hero Banner */}
-      <Card className="overflow-hidden border-(--brand-green)/20 bg-linear-to-r from-white via-brand-surface to-brand-green-100/45">
+      <Card className="overflow-hidden border-brand-green/20 bg-linear-to-r from-white via-brand-surface to-brand-green/10">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5 md:p-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -313,22 +351,19 @@ const DatasetsClient = ({ userId }: Props) => {
             </h1>
             <p className="max-w-2xl text-sm text-[#56746a]">
               Browse and manage your CanLII legal datasets from Ontario and
-              Canada (Federal). Search, filter, and sync documents.
+              Canada (Federal). Search, filter, and sync documents directly into
+              Postgres.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full border-(--brand-green)/25 text-brand-green hover:bg-brand-green-100/45"
-                  onClick={() => void fetchSyncLogs()}
-                >
-                  <Server className="h-3.5 w-3.5 mr-1.5" />
-                  Sync History
-                </Button>
+              <SheetTrigger
+                className="inline-flex items-center justify-center rounded-full border border-brand-green/25 px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/10 transition-colors"
+                onClick={() => void fetchSyncLogs()}
+              >
+                <Server className="h-3.5 w-3.5 mr-1.5" />
+                Sync History
               </SheetTrigger>
               <SheetContent className="w-full sm:max-w-md">
                 <SheetHeader>
@@ -347,9 +382,7 @@ const DatasetsClient = ({ userId }: Props) => {
                       No sync history yet.
                     </p>
                   ) : (
-                    syncLogs.map((log) => (
-                      <SyncLogRow key={log.id} log={log} />
-                    ))
+                    syncLogs.map((log) => <SyncLogRow key={log.id} log={log} />)
                   )}
                 </div>
               </SheetContent>
@@ -357,7 +390,7 @@ const DatasetsClient = ({ userId }: Props) => {
 
             <Button
               size="sm"
-              className="rounded-full bg-brand-green hover:bg-brand-green-700 text-white"
+              className="rounded-full bg-brand-green hover:bg-brand-green/90 text-white"
               onClick={handleSync}
               disabled={syncing}
             >
@@ -372,7 +405,7 @@ const DatasetsClient = ({ userId }: Props) => {
 
       {/* Summary Stats */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Card className="border-(--brand-green)/15 bg-white/95">
+        <Card className="border-brand-green/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Total Documents
@@ -384,7 +417,7 @@ const DatasetsClient = ({ userId }: Props) => {
           </CardContent>
         </Card>
 
-        <Card className="border-(--brand-green)/15 bg-white/95">
+        <Card className="border-brand-green/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Case Law
@@ -396,7 +429,7 @@ const DatasetsClient = ({ userId }: Props) => {
           </CardContent>
         </Card>
 
-        <Card className="border-(--brand-green)/15 bg-white/95">
+        <Card className="border-brand-green/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Legislation
@@ -408,7 +441,7 @@ const DatasetsClient = ({ userId }: Props) => {
           </CardContent>
         </Card>
 
-        <Card className="border-(--brand-green)/15 bg-white/95">
+        <Card className="border-brand-green/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Regulations
@@ -420,7 +453,7 @@ const DatasetsClient = ({ userId }: Props) => {
           </CardContent>
         </Card>
 
-        <Card className="border-(--brand-green)/15 bg-white/95">
+        <Card className="border-brand-green/15 bg-white/95">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Synced / Failed
@@ -441,10 +474,10 @@ const DatasetsClient = ({ userId }: Props) => {
       </section>
 
       {/* Filters */}
-      <Card className="border-(--brand-green)/15 bg-white/95">
+      <Card className="border-brand-green/15 bg-white/95">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-50">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title, citation, or court..."
@@ -456,9 +489,9 @@ const DatasetsClient = ({ userId }: Props) => {
 
             <Select
               value={jurisdictionFilter}
-              onValueChange={setJurisdictionFilter}
+              onValueChange={(val) => setJurisdictionFilter(val ?? "all")}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-40">
                 <Filter className="h-3.5 w-3.5 mr-1.5" />
                 <SelectValue placeholder="Jurisdiction" />
               </SelectTrigger>
@@ -470,10 +503,10 @@ const DatasetsClient = ({ userId }: Props) => {
             </Select>
 
             <Select
-              value={documentTypeFilter}
-              onValueChange={setDocumentTypeFilter}
+              value={jurisdictionFilter}
+              onValueChange={(val) => setJurisdictionFilter(val ?? "all")}
             >
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-42.5">
                 <SelectValue placeholder="Document Type" />
               </SelectTrigger>
               <SelectContent>
@@ -487,21 +520,19 @@ const DatasetsClient = ({ userId }: Props) => {
             </Select>
 
             <Select
-              value={syncStatusFilter}
-              onValueChange={setSyncStatusFilter}
+              value={jurisdictionFilter}
+              onValueChange={(val) => setJurisdictionFilter(val ?? "all")}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-37.5">
                 <SelectValue placeholder="Sync Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                {Object.entries(syncStatusConfig).map(
-                  ([value, { label }]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ),
-                )}
+                {Object.entries(syncStatusConfig).map(([value, { label }]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -525,7 +556,7 @@ const DatasetsClient = ({ userId }: Props) => {
       </Card>
 
       {/* Datasets Table */}
-      <Card className="border-(--brand-green)/15 bg-white/95 overflow-hidden">
+      <Card className="border-brand-green/15 bg-white/95 overflow-hidden">
         {loading ? (
           <div className="p-4">
             <table className="w-full">
@@ -545,14 +576,14 @@ const DatasetsClient = ({ userId }: Props) => {
             <p className="mt-1 text-xs text-muted-foreground max-w-sm">
               {hasActiveFilters
                 ? "Try adjusting your filters or search query to find what you're looking for."
-                : "Click \"Sync Now\" to fetch Ontario and Federal documents from CanLII."}
+                : 'Click "Sync Now" to fetch Ontario and Federal documents from CanLII.'}
             </p>
           </CardContent>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-(--brand-green)/10 bg-brand-surface/50">
+                <tr className="border-b border-brand-green/10 bg-brand-surface/50">
                   <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     Type
                   </th>
@@ -592,12 +623,15 @@ const DatasetsClient = ({ userId }: Props) => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.15, delay: index * 0.02 }}
-                      className="border-b border-(--brand-green)/5 hover:bg-brand-surface/30 transition-colors"
+                      className="border-b border-brand-green/5 hover:bg-brand-surface/30 transition-colors"
                     >
                       <td className="px-4 py-3">
-                        <div className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${docTypeColor}`}>
+                        <div
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${docTypeColor}`}
+                        >
                           <DocTypeIcon className="h-2.5 w-2.5" />
-                          {documentTypeLabels[dataset.documentType] || dataset.documentType}
+                          {documentTypeLabels[dataset.documentType] ||
+                            dataset.documentType}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -608,12 +642,15 @@ const DatasetsClient = ({ userId }: Props) => {
                           <div className="mt-0.5 flex items-center gap-2">
                             {dataset.jurisdiction && (
                               <span className="text-[10px] text-muted-foreground">
-                                {jurisdictionLabels[dataset.jurisdiction] || dataset.jurisdiction}
+                                {jurisdictionLabels[dataset.jurisdiction] ||
+                                  dataset.jurisdiction}
                               </span>
                             )}
                             {dataset.court && (
                               <>
-                                <span className="text-[10px] text-muted-foreground/40">·</span>
+                                <span className="text-[10px] text-muted-foreground/40">
+                                  ·
+                                </span>
                                 <span className="text-[10px] text-muted-foreground">
                                   {dataset.court}
                                 </span>
@@ -623,12 +660,14 @@ const DatasetsClient = ({ userId }: Props) => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        <p className="text-xs text-muted-foreground truncate max-w-50">
                           {dataset.citation || "—"}
                         </p>
                       </td>
                       <td className="px-4 py-3">
-                        <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncConfig.className}`}>
+                        <div
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncConfig.className}`}
+                        >
                           <SyncStatusIcon className="h-2.5 w-2.5" />
                           {syncConfig.label}
                         </div>
@@ -636,7 +675,9 @@ const DatasetsClient = ({ userId }: Props) => {
                       <td className="px-4 py-3">
                         <p className="text-xs text-muted-foreground">
                           {dataset.lastSyncedAt
-                            ? new Date(dataset.lastSyncedAt).toLocaleDateString()
+                            ? new Date(
+                                dataset.lastSyncedAt,
+                              ).toLocaleDateString()
                             : "—"}
                         </p>
                       </td>
@@ -668,7 +709,7 @@ const DatasetsClient = ({ userId }: Props) => {
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-lg border border-(--brand-green)/10 bg-white px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-brand-green/10 bg-white px-4 py-3">
           <p className="text-xs text-muted-foreground">
             Showing {(pagination.page - 1) * pagination.pageSize + 1}–
             {Math.min(pagination.page * pagination.pageSize, pagination.total)}{" "}
@@ -694,17 +735,16 @@ const DatasetsClient = ({ userId }: Props) => {
               (_, i) => {
                 const start = Math.max(
                   1,
-                  Math.min(
-                    pagination.page - 2,
-                    pagination.totalPages - 4,
-                  ),
+                  Math.min(pagination.page - 2, pagination.totalPages - 4),
                 );
                 const pageNum = start + i;
                 if (pageNum > pagination.totalPages) return null;
                 return (
                   <Button
                     key={pageNum}
-                    variant={pageNum === pagination.page ? "default" : "outline"}
+                    variant={
+                      pageNum === pagination.page ? "default" : "outline"
+                    }
                     size="icon"
                     className="h-7 w-7 text-xs"
                     onClick={() =>

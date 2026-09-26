@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { Fragment, GraphNode } from "@/generated/prisma";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Pencil,
@@ -11,8 +10,9 @@ import {
   MoreHorizontal,
   ChevronDown,
 } from "lucide-react";
-import { toast } from "sonner";
-import { deleteNode, updateNode } from "@/action/fragments";
+
+import { Fragment, GraphNode } from "@/types/canva";
+import { toast } from "@/components/ui/toast";
 import CreateFragmentForm from "../forms/create-fragment-form";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -46,28 +46,22 @@ const ProblemSpaceNodes = ({
   fragments,
 }: Props) => {
   const router = useRouter();
-  const [createFragmentNodeId, setCreateFragmentNodeId] = React.useState<
+  const [createFragmentNodeId, setCreateFragmentNodeId] = useState<
     string | null
   >(null);
-  const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
-  const [editingNodeTitle, setEditingNodeTitle] = React.useState("");
-  const [actionLoadingKey, setActionLoadingKey] = React.useState<string | null>(
-    null,
-  );
-  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null);
-  const [collapsedNodes, setCollapsedNodes] = React.useState<Set<string>>(
-    new Set(),
-  );
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingNodeTitle, setEditingNodeTitle] = useState("");
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
-  const fragmentsByNode = React.useMemo(() => {
+  const fragmentsByNode = useMemo(() => {
     const grouped = new Map<string, Fragment[]>();
-
     fragments.forEach((fragment) => {
       const current = grouped.get(fragment.nodeId) ?? [];
       current.push(fragment);
       grouped.set(fragment.nodeId, current);
     });
-
     return grouped;
   }, [fragments]);
 
@@ -97,26 +91,40 @@ const ProblemSpaceNodes = ({
     const nextTitle = editingNodeTitle.trim();
 
     if (!nextTitle) {
-      toast.error("Node name is required.");
+      toast.add({
+        type: "error",
+        description: "Node name is required.",
+        priority: "high",
+      });
       return;
     }
 
     setActionLoadingKey(`node-update-${nodeId}`);
     try {
-      const response = await updateNode(problemSpaceId, nodeId, {
-        title: nextTitle,
+      const res = await fetch(`http://127.0.0.1:8000/api/nodes/${nodeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: nextTitle }),
       });
 
-      if (!response) {
-        toast.error("Unable to update node.");
-        return;
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
       }
 
-      toast.success("Node updated.");
+      toast.add({
+        type: "success",
+        description: "Node updated successfully.",
+      });
+
       cancelNodeEdit();
       router.refresh();
-    } catch {
-      toast.error("Failed to update node.");
+    } catch (err) {
+      console.error("FastAPI Update Node Error:", err);
+      toast.add({
+        type: "error",
+        description: "Failed to update node via Python backend.",
+        priority: "high",
+      });
     } finally {
       setActionLoadingKey(null);
     }
@@ -125,29 +133,35 @@ const ProblemSpaceNodes = ({
   const handleDeleteNode = async (nodeId: string) => {
     setActionLoadingKey(`node-delete-${nodeId}`);
     try {
-      const response = await deleteNode(problemSpaceId, nodeId);
+      const res = await fetch(`http://127.0.0.1:8000/api/nodes/${nodeId}`, {
+        method: "DELETE",
+      });
 
-      if (!response) {
-        toast.error("Unable to delete node.");
-        return;
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
       }
 
-      toast.success("Node deleted.");
+      toast.add({
+        type: "success",
+        description: "Node deleted successfully.",
+      });
+
       router.refresh();
-    } catch {
-      toast.error("Failed to delete node.");
+    } catch (err) {
+      console.error("FastAPI Delete Node Error:", err);
+      toast.add({
+        type: "error",
+        description: "Failed to delete node via Python backend.",
+        priority: "high",
+      });
     } finally {
       setActionLoadingKey(null);
     }
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteTarget) {
-      return;
-    }
-
+    if (!deleteTarget) return;
     await handleDeleteNode(deleteTarget.id);
-
     setDeleteTarget(null);
   };
 
@@ -224,7 +238,7 @@ const ProblemSpaceNodes = ({
                       <h3 className="text-[13px] font-semibold text-stone-800 truncate">
                         {node.title}
                       </h3>
-                      <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#dff3e7] text-[#12753e] text-[10px] font-semibold shrink-0">
+                      <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-[#dff3e7] text-[#12753e] text-[10px] font-semibold shrink-0">
                         {nodeFragments.length}
                       </span>
                     </div>
@@ -242,14 +256,11 @@ const ProblemSpaceNodes = ({
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-stone-400 hover:text-stone-600 hover:bg-stone-100"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                        <DropdownMenuTrigger
+                          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                          aria-label="Node options"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
@@ -285,13 +296,9 @@ const ProblemSpaceNodes = ({
                 )}
               </div>
 
-              {/* Fragments area - collapsible */}
+              {/* Fragments area */}
               {editingNodeId !== node.id && (
-                <div
-                  className={`${
-                    isCollapsed ? "animate-slide-up" : "animate-slide-down"
-                  }`}
-                >
+                <div className={isCollapsed ? "hidden" : "block"}>
                   <div className="px-4 pb-3 pt-0">
                     {nodeFragments.length === 0 ? (
                       <button

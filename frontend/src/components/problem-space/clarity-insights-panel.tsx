@@ -1,21 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   CheckCircle2,
   AlertCircle,
-  ArrowRight,
   Lightbulb,
-  TrendingUp,
-  Link2,
   X,
   ChevronDown,
   ChevronUp,
   Sparkles,
   Plus,
 } from "lucide-react";
+
 import { Button } from "../ui/button";
-import { Fragment, GraphNode } from "@/generated/prisma";
+import { Fragment, GraphNode } from "@/types/canva";
 import CreateFragmentForm from "../forms/create-fragment-form";
 import FragmentSuggestions from "./fragment-suggestions";
 
@@ -94,10 +92,7 @@ const fragmentTypeLabels: Record<Fragment["type"], string> = {
   CONCLUSION: "Conclusion",
 };
 
-const essentialTypes: Fragment["type"][] = [
-  "QUESTION",
-  "CONCLUSION",
-];
+const essentialTypes: Fragment["type"][] = ["QUESTION", "CONCLUSION"];
 
 function computeClarityScore(
   fragments: Fragment[],
@@ -110,7 +105,8 @@ function computeClarityScore(
 
   const connectedFragmentIds = new Set<string>();
   connections.forEach((conn) => {
-    if (conn.fromNodeId === nodeId) connectedFragmentIds.add(conn.fromFragmentId);
+    if (conn.fromNodeId === nodeId)
+      connectedFragmentIds.add(conn.fromFragmentId);
     if (conn.toNodeId === nodeId) connectedFragmentIds.add(conn.toFragmentId);
   });
 
@@ -140,14 +136,19 @@ function computeInsights(
 
   const nodeFragments = fragments.filter((f) => f.nodeId === node.id);
   const typeCounts = new Map<Fragment["type"], number>();
-  nodeFragments.forEach((f) => typeCounts.set(f.type, (typeCounts.get(f.type) ?? 0) + 1));
+  nodeFragments.forEach((f) =>
+    typeCounts.set(f.type, (typeCounts.get(f.type) ?? 0) + 1),
+  );
 
-  // Strengths
   const strongConns = connections.filter(
-    (c) => (c.fromNodeId === node.id || c.toNodeId === node.id) && c.strength === "STRONG",
+    (c) =>
+      (c.fromNodeId === node.id || c.toNodeId === node.id) &&
+      c.strength === "STRONG",
   );
   if (strongConns.length > 0) {
-    strengths.push(`${strongConns.length} strong connection${strongConns.length > 1 ? "s" : ""} to other nodes`);
+    strengths.push(
+      `${strongConns.length} strong connection${strongConns.length > 1 ? "s" : ""} to other nodes`,
+    );
   }
 
   if ((typeCounts.get("CONCLUSION") ?? 0) > 0) {
@@ -158,7 +159,6 @@ function computeInsights(
     strengths.push(`${nodeFragments.length} fragments — well-documented`);
   }
 
-  // Gaps
   essentialTypes.forEach((type) => {
     if ((typeCounts.get(type) ?? 0) === 0) {
       gaps.push(`Missing ${fragmentTypeLabels[type].toLowerCase()} fragment`);
@@ -167,7 +167,11 @@ function computeInsights(
 
   const outGoing = connections.filter((c) => c.fromNodeId === node.id);
   const inComing = connections.filter((c) => c.toNodeId === node.id);
-  if (outGoing.length === 0 && inComing.length === 0 && nodeFragments.length > 0) {
+  if (
+    outGoing.length === 0 &&
+    inComing.length === 0 &&
+    nodeFragments.length > 0
+  ) {
     gaps.push("Not connected to any other node");
   }
 
@@ -175,12 +179,18 @@ function computeInsights(
     gaps.push("Has constraints but no conclusion drawn");
   }
 
-  // Suggestions
   if ((typeCounts.get("QUESTION") ?? 0) === 0) {
-    suggestions.push("Add a QUESTION fragment to clarify what this node explores");
+    suggestions.push(
+      "Add a QUESTION fragment to clarify what this node explores",
+    );
   }
-  if ((typeCounts.get("IDEA") ?? 0) === 0 && (typeCounts.get("OBSERVATION") ?? 0) === 0) {
-    suggestions.push("Add IDEA or OBSERVATION fragments to build your argument");
+  if (
+    (typeCounts.get("IDEA") ?? 0) === 0 &&
+    (typeCounts.get("OBSERVATION") ?? 0) === 0
+  ) {
+    suggestions.push(
+      "Add IDEA or OBSERVATION fragments to build your argument",
+    );
   }
   if (outGoing.length === 0 && inComing.length === 0) {
     suggestions.push("Connect this node to others to build a coherent case");
@@ -189,7 +199,6 @@ function computeInsights(
     suggestions.push("Add more fragments to build a stronger foundation");
   }
 
-  // Connected nodes
   const connectedNodeMap = new Map<
     string,
     { nodeTitle: string; connectionCount: number; strongestStrength: string }
@@ -210,7 +219,7 @@ function computeInsights(
                 ? "STRONG"
                 : conn.strength === "MEDIUM"
                   ? "MEDIUM"
-                  : existing?.strongestStrength ?? "GENTLE",
+                  : (existing?.strongestStrength ?? "GENTLE"),
         });
       }
     }
@@ -228,7 +237,7 @@ function computeInsights(
                 ? "STRONG"
                 : conn.strength === "MEDIUM"
                   ? "MEDIUM"
-                  : existing?.strongestStrength ?? "GENTLE",
+                  : (existing?.strongestStrength ?? "GENTLE"),
         });
       }
     }
@@ -298,7 +307,7 @@ function InsightSection({
   items: string[];
   variant: "green" | "red" | "blue" | "amber";
 }) {
-  const [expanded, setExpanded] = React.useState(true);
+  const [expanded, setExpanded] = useState(true);
 
   if (items.length === 0) return null;
 
@@ -344,7 +353,7 @@ function InsightSection({
             {title}
           </span>
           <span
-            className={`inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded text-[9px] font-bold ${vs.badge}`}
+            className={`inline-flex items-center justify-center h-4 min-w-4 px-1 rounded text-[9px] font-bold ${vs.badge}`}
           >
             {items.length}
           </span>
@@ -360,7 +369,7 @@ function InsightSection({
           <ul className="space-y-1.5">
             {items.map((item, i) => (
               <li key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 inline-flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded bg-white/70 px-1 text-[9px] font-bold text-stone-400">
+                <span className="mt-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-white/70 px-1 text-[9px] font-bold text-stone-400">
                   {i + 1}
                 </span>
                 <span className="text-[11.5px] text-stone-600 leading-relaxed">
@@ -384,9 +393,7 @@ function ConnectedNodesList({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-medium text-stone-600">
-        Connected Nodes
-      </p>
+      <p className="text-[11px] font-medium text-stone-600">Connected Nodes</p>
       {connectedNodes.map((cn, i) => (
         <div
           key={i}
@@ -423,18 +430,18 @@ export default function ClarityInsightsPanel({
   allNodes,
   onClose,
 }: Props) {
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const nodeFragments = React.useMemo(
+  const [createOpen, setCreateOpen] = useState(false);
+  const nodeFragments = useMemo(
     () => fragments.filter((f) => f.nodeId === node.id),
     [fragments, node.id],
   );
 
-  const score = React.useMemo(
+  const score = useMemo(
     () => computeClarityScore(nodeFragments, connections, node.id),
     [nodeFragments, connections, node.id],
   );
 
-  const insights = React.useMemo(
+  const insights = useMemo(
     () => computeInsights(node, fragments, connections, allNodes),
     [node, fragments, connections, allNodes],
   );

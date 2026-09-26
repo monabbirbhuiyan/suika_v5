@@ -151,10 +151,7 @@ const AnalysisChat = ({ problemSpaceId, defendingSide }: Props) => {
         </p>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {historyLoading ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
@@ -166,7 +163,7 @@ const AnalysisChat = ({ problemSpaceId, defendingSide }: Props) => {
             <p className="text-sm font-medium text-foreground">
               Start a conversation
             </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[250px]">
+            <p className="text-xs text-muted-foreground mt-1 max-w-62.5">
               Ask me about the case analysis, legal concepts, or request
               additional insights
             </p>
@@ -180,9 +177,9 @@ const AnalysisChat = ({ problemSpaceId, defendingSide }: Props) => {
               }`}
             >
               {message.role === "assistant" && (
-            <div className="h-7 w-7 rounded-full bg-[#dff3e7] flex items-center justify-center shrink-0">
-              <Bot className="h-4 w-4 text-[#12753e]" />
-            </div>
+                <div className="h-7 w-7 rounded-full bg-[#dff3e7] flex items-center justify-center shrink-0">
+                  <Bot className="h-4 w-4 text-[#12753e]" />
+                </div>
               )}
               <div
                 className={`max-w-[85%] rounded-xl px-4 py-3 ${
@@ -209,9 +206,9 @@ const AnalysisChat = ({ problemSpaceId, defendingSide }: Props) => {
         )}
         {loading && (
           <div className="flex gap-3 justify-start">
-                <div className="h-7 w-7 rounded-full bg-[#dff3e7] flex items-center justify-center shrink-0">
-                  <Bot className="h-4 w-4 text-[#12753e]" />
-                </div>
+            <div className="h-7 w-7 rounded-full bg-[#dff3e7] flex items-center justify-center shrink-0">
+              <Bot className="h-4 w-4 text-[#12753e]" />
+            </div>
             <div className="bg-muted rounded-xl px-4 py-3">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
@@ -225,7 +222,7 @@ const AnalysisChat = ({ problemSpaceId, defendingSide }: Props) => {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask about the analysis..."
-            className="min-h-[80px] resize-none"
+            className="min-h-20 resize-none"
             onKeyDown={(event) => {
               if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                 event.preventDefault();

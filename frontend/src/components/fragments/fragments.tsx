@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
-import { Fragment } from "@/generated/prisma";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { deleteFragment, updateFragment } from "@/action/fragments";
+
+import { Fragment } from "@/types/canva";
+import { toast } from "@/components/ui/toast";
 import { fragmentTypes, singleInstanceFragmentTypes } from "@/lib/schemas";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -87,46 +87,36 @@ const getFragmentTypeLabels = (nodeFragments: Fragment[]) => {
 
 const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
   const router = useRouter();
-  const [editingFragmentId, setEditingFragmentId] = React.useState<
-    string | null
-  >(null);
-  const [editingFragmentContent, setEditingFragmentContent] =
-    React.useState("");
+  const [editingFragmentId, setEditingFragmentId] = useState<string | null>(
+    null,
+  );
+  const [editingFragmentContent, setEditingFragmentContent] = useState("");
   const [editingFragmentType, setEditingFragmentType] =
-    React.useState<Fragment["type"]>("QUESTION");
-  const [actionLoadingKey, setActionLoadingKey] = React.useState<string | null>(
-    null,
-  );
-  const [deleteFragmentId, setDeleteFragmentId] = React.useState<string | null>(
-    null,
-  );
+    useState<Fragment["type"]>("QUESTION");
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
+  const [deleteFragmentId, setDeleteFragmentId] = useState<string | null>(null);
 
-  const orderedNodeFragments = React.useMemo(() => {
+  const orderedNodeFragments = useMemo(() => {
     return [...nodeFragments].sort((a, b) => {
       const byType =
         fragmentTypePriority[a.type] - fragmentTypePriority[b.type];
-
-      if (byType !== 0) {
-        return byType;
-      }
+      if (byType !== 0) return byType;
 
       const bySortOrder = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      if (bySortOrder !== 0) return bySortOrder;
 
-      if (bySortOrder !== 0) {
-        return bySortOrder;
-      }
-
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeA - timeB;
     });
   }, [nodeFragments]);
 
-  const disabledEditTypes = React.useMemo(() => {
+  const disabledEditTypes = useMemo(() => {
     if (!editingFragmentId) {
       return new Set<Fragment["type"]>();
     }
 
     const disabled = new Set<Fragment["type"]>();
-
     nodeFragments.forEach((fragment) => {
       if (
         fragment.id !== editingFragmentId &&
@@ -139,7 +129,7 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
     return disabled;
   }, [editingFragmentId, nodeFragments]);
 
-  const fragmentTypeLabels = React.useMemo(
+  const fragmentTypeLabels = useMemo(
     () => getFragmentTypeLabels(orderedNodeFragments),
     [orderedNodeFragments],
   );
@@ -160,27 +150,47 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
     const nextContent = editingFragmentContent.trim();
 
     if (!nextContent) {
-      toast.error("Content is required.");
+      toast.add({
+        type: "error",
+        description: "Content is required.",
+        priority: "high",
+      });
       return;
     }
 
     setActionLoadingKey(`fragment-update-${fragmentId}`);
     try {
-      const response = await updateFragment(problemSpaceId, fragmentId, {
-        content: nextContent,
-        type: editingFragmentType,
-      });
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/nodes/fragments/${fragmentId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            problem_space_id: problemSpaceId,
+            content: nextContent,
+            type: editingFragmentType,
+          }),
+        },
+      );
 
-      if (!response) {
-        toast.error("Unable to update fragment.");
-        return;
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
       }
 
-      toast.success("Fragment updated.");
+      toast.add({
+        type: "success",
+        description: "Fragment updated.",
+      });
+
       cancelFragmentEdit();
       router.refresh();
-    } catch {
-      toast.error("Failed to update fragment.");
+    } catch (err) {
+      console.error("FastAPI update fragment error:", err);
+      toast.add({
+        type: "error",
+        description: "Failed to update fragment via Python backend.",
+        priority: "high",
+      });
     } finally {
       setActionLoadingKey(null);
     }
@@ -189,18 +199,31 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
   const handleDeleteFragment = async (fragmentId: string) => {
     setActionLoadingKey(`fragment-delete-${fragmentId}`);
     try {
-      const response = await deleteFragment(problemSpaceId, fragmentId);
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/nodes/fragments/${fragmentId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-      if (!response) {
-        toast.error("Unable to delete fragment.");
-        return;
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
       }
 
-      toast.success("Fragment deleted.");
+      toast.add({
+        type: "success",
+        description: "Fragment deleted.",
+      });
+
       setDeleteFragmentId(null);
       router.refresh();
-    } catch {
-      toast.error("Failed to delete fragment.");
+    } catch (err) {
+      console.error("FastAPI delete fragment error:", err);
+      toast.add({
+        type: "error",
+        description: "Failed to delete fragment via Python backend.",
+        priority: "high",
+      });
     } finally {
       setActionLoadingKey(null);
     }
@@ -256,7 +279,7 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                     onChange={(event) =>
                       setEditingFragmentContent(event.target.value)
                     }
-                    className="min-h-[60px] text-[13px] bg-white border-stone-200 focus-visible:ring-stone-300 resize-none leading-relaxed"
+                    className="min-h-15 text-[13px] bg-white border-stone-200 focus-visible:ring-stone-300 resize-none leading-relaxed"
                     placeholder="Fragment content"
                   />
                   <div className="flex items-center justify-end gap-1.5">
@@ -295,23 +318,22 @@ const Fragments = ({ problemSpaceId, nodeFragments }: Props) => {
                       <p className="text-[13px] text-stone-700 leading-relaxed">
                         {fragment.content}
                       </p>
-                      <p className="text-[10px] text-stone-400 mt-1">
-                        {new Date(fragment.createdAt).toLocaleDateString(
-                          undefined,
-                          { month: "short", day: "numeric" },
-                        )}
-                      </p>
+                      {fragment.createdAt && (
+                        <p className="text-[10px] text-stone-400 mt-1">
+                          {new Date(fragment.createdAt).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric" },
+                          )}
+                        </p>
+                      )}
                     </div>
                     <div className="shrink-0 opacity-0 group-hover/frag:opacity-100 transition-opacity duration-150">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-stone-300 hover:text-stone-500 hover:bg-stone-200/50"
-                          >
-                            <span className="text-xs leading-none">···</span>
-                          </Button>
+                        <DropdownMenuTrigger
+                          className="h-6 w-6 inline-flex items-center justify-center rounded text-stone-300 hover:text-stone-500 hover:bg-stone-200/50 transition-colors"
+                          aria-label="Fragment options"
+                        >
+                          <span className="text-xs leading-none">···</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"

@@ -25,16 +25,47 @@ const sectionPatterns: Array<{
   icon: React.ReactNode;
   variant: Section["variant"];
 }> = [
-  { match: /argument|strength|strong/i, icon: <Swords className="h-3 w-3" />, variant: "green" },
-  { match: /rebuttal|counter/i, icon: <Shield className="h-3 w-3" />, variant: "blue" },
-  { match: /risk|obstacle|weakness|concern/i, icon: <AlertCircle className="h-3 w-3" />, variant: "red" },
-  { match: /next step|recommendation|action/i, icon: <ArrowRight className="h-3 w-3" />, variant: "blue" },
-  { match: /key factor|strength|advantage/i, icon: <CheckCircle2 className="h-3 w-3" />, variant: "green" },
-  { match: /law|authority|statute|regulation/i, icon: <Scale className="h-3 w-3" />, variant: "purple" },
-  { match: /strateg|approach|plan/i, icon: <Lightbulb className="h-3 w-3" />, variant: "amber" },
+  {
+    match: /argument|strength|strong/i,
+    icon: <Swords className="h-3 w-3" />,
+    variant: "green",
+  },
+  {
+    match: /rebuttal|counter/i,
+    icon: <Shield className="h-3 w-3" />,
+    variant: "blue",
+  },
+  {
+    match: /risk|obstacle|weakness|concern/i,
+    icon: <AlertCircle className="h-3 w-3" />,
+    variant: "red",
+  },
+  {
+    match: /next step|recommendation|action/i,
+    icon: <ArrowRight className="h-3 w-3" />,
+    variant: "blue",
+  },
+  {
+    match: /key factor|strength|advantage/i,
+    icon: <CheckCircle2 className="h-3 w-3" />,
+    variant: "green",
+  },
+  {
+    match: /law|authority|statute|regulation/i,
+    icon: <Scale className="h-3 w-3" />,
+    variant: "purple",
+  },
+  {
+    match: /strateg|approach|plan/i,
+    icon: <Lightbulb className="h-3 w-3" />,
+    variant: "amber",
+  },
 ];
 
-const variantClasses: Record<Section["variant"], { bg: string; border: string; icon: string; badge: string }> = {
+const variantClasses: Record<
+  Section["variant"],
+  { bg: string; border: string; icon: string; badge: string }
+> = {
   green: {
     bg: "bg-[#dff3e7]/50",
     border: "border-[#12753e]/20",
@@ -79,7 +110,10 @@ function parseSections(text: string): Section[] {
   let current: Section | null = null;
 
   const detectSection = (line: string) => {
-    const trimmed = line.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+    const trimmed = line
+      .replace(/^[-*]\s*/, "")
+      .replace(/^\d+\.\s*/, "")
+      .trim();
     for (const pattern of sectionPatterns) {
       if (pattern.match.test(trimmed)) {
         return {
@@ -98,11 +132,15 @@ function parseSections(text: string): Section[] {
 
     // Check for section headers (lines ending with : or starting with ##)
     const isHeader =
-      (/^#{1,3}\s/.test(trimmed) || /^[A-Z][^:]*:\s*$/.test(trimmed)) && trimmed.length < 80;
+      (/^#{1,3}\s/.test(trimmed) || /^[A-Z][^:]*:\s*$/.test(trimmed)) &&
+      trimmed.length < 80;
 
     if (isHeader) {
       if (current) sections.push(current);
-      const title = trimmed.replace(/^#{1,3}\s*/, "").replace(/[:.]+$/, "").trim();
+      const title = trimmed
+        .replace(/^#{1,3}\s*/, "")
+        .replace(/[:.]+$/, "")
+        .trim();
       const detected = detectSection(title);
       current = {
         title,
@@ -114,7 +152,8 @@ function parseSections(text: string): Section[] {
     }
 
     // Bullet or numbered list items
-    const itemMatch = trimmed.match(/^[-*]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
+    const itemMatch =
+      trimmed.match(/^[-*]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
     if (itemMatch) {
       const itemText = itemMatch[1].trim();
       if (current) {
@@ -146,7 +185,11 @@ function parseSections(text: string): Section[] {
       current.items.push(trimmed);
     } else {
       const lastSection = sections[sections.length - 1];
-      if (lastSection && lastSection.title === "" && lastSection.items.length > 0) {
+      if (
+        lastSection &&
+        lastSection.title === "" &&
+        lastSection.items.length > 0
+      ) {
         lastSection.items.push(trimmed);
       } else {
         sections.push({
@@ -210,7 +253,9 @@ function SectionCard({ section, index }: { section: Section; index: number }) {
           <span className="text-[12px] font-semibold text-stone-700 truncate">
             {section.title || `Section ${index + 1}`}
           </span>
-          <span className={`inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded text-[10px] font-bold ${vc.badge}`}>
+          <span
+            className={`inline-flex items-center justify-center h-4 min-w-4 px-1 rounded text-[10px] font-bold ${vc.badge}`}
+          >
             {section.items.length}
           </span>
         </div>
@@ -226,7 +271,7 @@ function SectionCard({ section, index }: { section: Section; index: number }) {
             {section.items.map((item, i) => (
               <li key={i} className="flex items-start gap-2">
                 {section.items.length > 1 && (
-                  <span className="mt-0.5 inline-flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded bg-white/70 px-1 text-[10px] font-bold text-stone-500">
+                  <span className="mt-0.5 inline-flex h-4 min-w-4shrink-0 items-center justify-center rounded bg-white/70 px-1 text-[10px] font-bold text-stone-500">
                     {i + 1}
                   </span>
                 )}
@@ -256,7 +301,11 @@ export default function RichMessage({ content }: { content: string }) {
   return (
     <div className="space-y-2">
       {sections.map((section, i) => (
-        <SectionCard key={`${section.title}-${i}`} section={section} index={i} />
+        <SectionCard
+          key={`${section.title}-${i}`}
+          section={section}
+          index={i}
+        />
       ))}
     </div>
   );

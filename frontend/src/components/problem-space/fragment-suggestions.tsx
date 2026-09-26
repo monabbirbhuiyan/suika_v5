@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Sparkles,
   CheckCircle2,
@@ -9,9 +9,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+
 import { Button } from "../ui/button";
-import { Fragment, GraphNode } from "@/generated/prisma";
-import { createFragment } from "@/action/fragments";
+import { Fragment, GraphNode } from "@/types/canva";
+import { toast } from "@/components/ui/toast";
 
 type FragmentSuggestion = {
   nodeId: string;
@@ -31,68 +32,104 @@ type Props = {
 const typeStyles: Record<string, { bg: string; text: string; dot: string }> = {
   QUESTION: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
   IDEA: { bg: "bg-sky-50", text: "text-sky-700", dot: "bg-sky-500" },
-  OBSERVATION: { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
+  OBSERVATION: {
+    bg: "bg-orange-50",
+    text: "text-orange-700",
+    dot: "bg-orange-500",
+  },
   CONSTRAINS: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500" },
-  CONCLUSION: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  CONCLUSION: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    dot: "bg-emerald-500",
+  },
 };
 
 export default function FragmentSuggestions({
   problemSpaceId,
   node,
-  fragments,
   onFragmentCreated,
 }: Props) {
-  const [suggestions, setSuggestions] = React.useState<FragmentSuggestion[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [expanded, setExpanded] = React.useState(true);
-  const [acceptedIds, setAcceptedIds] = React.useState<Set<number>>(new Set());
-  const [creatingId, setCreatingId] = React.useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<FragmentSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+  const [acceptedIds, setAcceptedIds] = useState<Set<number>>(new Set());
+  const [creatingId, setCreatingId] = useState<number | null>(null);
 
   const fetchSuggestions = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/ai/suggest-fragments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problemSpaceId }),
-      });
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/ai/suggest-fragments",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            problem_space_id: problemSpaceId,
+            node_id: node.id,
+          }),
+        },
+      );
 
-      const payload = (await response.json().catch(() => null)) as {
-        suggestions?: FragmentSuggestion[];
-        error?: string;
-        message?: string;
-      } | null;
-
-      if (!response.ok || !payload?.suggestions) {
-        throw new Error(payload?.message || payload?.error || "Failed to get suggestions");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to get suggestions");
       }
 
-      setSuggestions(payload.suggestions);
+      const payload = await response.json();
+      setSuggestions(payload.suggestions || []);
       setExpanded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get suggestions");
+      const msg =
+        err instanceof Error ? err.message : "Failed to get suggestions";
+      setError(msg);
+      toast.add({
+        type: "error",
+        description: msg,
+        priority: "high",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const acceptSuggestion = async (index: number, suggestion: FragmentSuggestion) => {
+  const acceptSuggestion = async (
+    index: number,
+    suggestion: FragmentSuggestion,
+  ) => {
     setCreatingId(index);
 
     try {
-      await createFragment(problemSpaceId, {
-        content: suggestion.content,
-        nodeId: suggestion.nodeId,
-        type: suggestion.type as Fragment["type"],
+      const res = await fetch("http://127.0.0.1:8000/api/nodes/fragments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          problem_space_id: problemSpaceId,
+          node_id: suggestion.nodeId || node.id,
+          content: suggestion.content,
+          type: suggestion.type,
+        }),
       });
 
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
       setAcceptedIds((prev) => new Set(prev).add(index));
+      toast.add({
+        type: "success",
+        description: "Fragment added to problem space.",
+      });
       onFragmentCreated?.();
-    } catch {
-      // Silently fail
+    } catch (err) {
+      toast.add({
+        type: "error",
+        description: "Failed to persist suggestion via FastAPI.",
+        priority: "high",
+      });
     } finally {
       setCreatingId(null);
     }
@@ -104,7 +141,7 @@ export default function FragmentSuggestions({
 
   const visibleSuggestions = suggestions.filter((_, i) => !acceptedIds.has(i));
 
-  React.useEffect(() => {
+  useEffect(() => {
     setSuggestions([]);
     setAcceptedIds(new Set());
     setError(null);
@@ -154,7 +191,7 @@ export default function FragmentSuggestions({
             AI Suggestions
           </span>
           {visibleSuggestions.length > 0 && (
-            <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded bg-[#12753e] text-white text-[9px] font-bold">
+            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded bg-[#12753e] text-white text-[9px] font-bold">
               {visibleSuggestions.length}
             </span>
           )}
@@ -168,11 +205,7 @@ export default function FragmentSuggestions({
             onClick={fetchSuggestions}
             disabled={loading}
           >
-            {loading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              "Refresh"
-            )}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
           </Button>
           {expanded ? (
             <ChevronUp className="h-3 w-3 text-stone-400" />
@@ -188,7 +221,9 @@ export default function FragmentSuggestions({
           {loading && suggestions.length === 0 ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-4 w-4 animate-spin text-[#12753e] mr-2" />
-              <span className="text-[11px] text-stone-500">Analyzing case...</span>
+              <span className="text-[11px] text-stone-500">
+                Analyzing case...
+              </span>
             </div>
           ) : error ? (
             <div className="text-center py-3">
@@ -206,8 +241,12 @@ export default function FragmentSuggestions({
           ) : visibleSuggestions.length === 0 ? (
             <div className="text-center py-3">
               <CheckCircle2 className="h-5 w-5 text-[#12753e] mx-auto mb-1" />
-              <p className="text-[11px] text-stone-600 font-medium">All done!</p>
-              <p className="text-[10px] text-stone-400">All suggestions reviewed</p>
+              <p className="text-[11px] text-stone-600 font-medium">
+                All done!
+              </p>
+              <p className="text-[10px] text-stone-400">
+                All suggestions reviewed
+              </p>
             </div>
           ) : (
             visibleSuggestions.map((suggestion, i) => {
@@ -221,8 +260,12 @@ export default function FragmentSuggestions({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                      <span className={`text-[9px] font-bold uppercase tracking-wider ${style.text}`}>
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${style.dot}`}
+                      />
+                      <span
+                        className={`text-[9px] font-bold uppercase tracking-wider ${style.text}`}
+                      >
                         {suggestion.type}
                       </span>
                     </div>
@@ -244,7 +287,9 @@ export default function FragmentSuggestions({
                       type="button"
                       size="sm"
                       className="h-6 px-2.5 text-[10px] bg-[#12753e] hover:bg-[#0d582f] text-white"
-                      onClick={() => acceptSuggestion(originalIndex, suggestion)}
+                      onClick={() =>
+                        acceptSuggestion(originalIndex, suggestion)
+                      }
                       disabled={creatingId === originalIndex}
                     >
                       {creatingId === originalIndex ? (

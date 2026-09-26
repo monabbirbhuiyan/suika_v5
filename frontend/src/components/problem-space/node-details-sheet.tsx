@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment } from "@/generated/prisma";
+import React from "react";
+import { Fragment } from "@/types/canva";
 import { Card } from "../ui/card";
 import {
   Sheet,
@@ -36,7 +37,7 @@ const NodeDetailsSheet = ({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="sm:max-w-md p-0">
-        <SheetHeader className="border-b">
+        <SheetHeader className="border-b p-4">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
             {fragments.length} fragment
@@ -54,10 +55,13 @@ const NodeDetailsSheet = ({
               <Card key={fragment.id} className="p-3 gap-2">
                 <div className="flex items-center gap-2">
                   <div
-                    className={`h-2 w-2 rounded-full ${dotClassByType[fragment.type]}`}
+                    className={`h-2 w-2 rounded-full ${dotClassByType[fragment.type] || "bg-muted"}`}
                   />
-                  <span className="text-[10px] tracking-wider text-muted-foreground">
-                    {getTypeLabel(fragment.type, fragmentTypeLabels[index])}
+                  <span className="text-[10px] tracking-wider text-muted-foreground uppercase">
+                    {getTypeLabel(
+                      fragment.type,
+                      fragmentTypeLabels[index] || fragment.type,
+                    )}
                   </span>
                 </div>
                 <p className="text-sm font-medium text-foreground">

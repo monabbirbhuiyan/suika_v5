@@ -207,7 +207,7 @@ const ProfileTab = ({ user, onSave }: Props) => {
                   <Text className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Textarea
                     {...register("bio")}
-                    className="pl-10 resize-none min-h-[90px]"
+                    className="pl-10 resize-none min-h-22.5"
                     placeholder="A short reflection. Only visible to you."
                   />
                 </div>
