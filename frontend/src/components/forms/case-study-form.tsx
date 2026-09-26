@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   Upload,
   FileText,
@@ -11,9 +10,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+
+import { toast } from "@/components/ui/toast";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { createNodesFromCaseStudy } from "@/action/fragments";
 
 type Props = {
   problemSpaceId: string;
@@ -21,42 +21,12 @@ type Props = {
 
 const CaseStudyForm = ({ problemSpaceId }: Props) => {
   const router = useRouter();
-  const [minimized, setMinimized] = React.useState(false);
-  const [caseStudyText, setCaseStudyText] = React.useState("");
-  const [fileName, setFileName] = React.useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = React.useState(false);
-  const [isParsing, setIsParsing] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const parseFile = async (file: File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase();
-
-    if (ext === "txt") {
-      return await file.text();
-    }
-
-    if (ext === "docx") {
-      const mammoth = await import("mammoth");
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      return result.value;
-    }
-
-    if (ext === "pdf") {
-      const { PDFParse } = await import("pdf-parse");
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      const parser = new PDFParse({ data: uint8Array });
-      try {
-        const result = await parser.getText();
-        return result.text;
-      } finally {
-        await parser.destroy();
-      }
-    }
-
-    throw new Error(`Unsupported file type: .${ext}`);
-  };
+  const [minimized, setMinimized] = useState(false);
+  const [caseStudyText, setCaseStudyText] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,7 +34,11 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
 
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!["txt", "docx", "pdf"].includes(ext ?? "")) {
-      toast.error("Please upload a .txt, .docx, or .pdf file");
+      toast.add({
+        type: "error",
+        description: "Please upload a .txt, .docx, or .pdf file.",
+        priority: "high",
+      });
       return;
     }
 
@@ -72,12 +46,32 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
     setFileName(file.name);
 
     try {
-      const text = await parseFile(file);
-      setCaseStudyText(text);
-      toast.success(`Parsed ${file.name}`);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("http://127.0.0.1:8000/api/ai/parse-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.detail || "Failed to parse document on backend",
+        );
+      }
+
+      const data = await res.json();
+      setCaseStudyText(data.text);
+
+      toast.add({
+        type: "success",
+        description: `Parsed ${file.name} successfully.`,
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to parse file";
-      toast.error(message);
+      const message =
+        err instanceof Error ? err.message : "Failed to parse file";
+      toast.add({ type: "error", description: message, priority: "high" });
       setFileName(null);
     } finally {
       setIsParsing(false);
@@ -90,42 +84,47 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
   const handleSubmit = async () => {
     const text = caseStudyText.trim();
     if (text.length < 50) {
-      toast.error("Case study must be at least 50 characters");
+      toast.add({
+        type: "error",
+        description: "Case study must be at least 50 characters.",
+        priority: "high",
+      });
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      const response = await fetch("/api/ai/parse-case-study", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problemSpaceId,
-          caseStudyText: text,
-        }),
+      // Direct call to FastAPI's unified neuro-symbolic pipeline
+      const res = await fetch(
+        "http://127.0.0.1:8000/api/ai/process-case-study",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            problem_space_id: problemSpaceId,
+            document_text: text,
+            target_claim: "claim_is_timely",
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to process case study with AI");
+      }
+
+      const count = data.fragments_count || 0;
+      const conflictMsg = data.verification?.conflict_detected
+        ? " Contradiction core detected in Z3 solver."
+        : " Logical consistency verified.";
+
+      toast.add({
+        type: "success",
+        description: `Generated and persisted ${count} fragments.${conflictMsg}`,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to parse case study");
-      }
-
-      const nodes = data.nodes;
-      if (!nodes || nodes.length === 0) {
-        throw new Error("No nodes were generated from the case study");
-      }
-
-      const result = await createNodesFromCaseStudy(problemSpaceId, nodes);
-
-      if (!result) {
-        throw new Error("Failed to save nodes to database");
-      }
-
-      toast.success(
-        `Created ${result.nodeCount} node${result.nodeCount !== 1 ? "s" : ""} from case study`,
-      );
       setCaseStudyText("");
       setFileName(null);
       setMinimized(true);
@@ -133,7 +132,7 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to process case study";
-      toast.error(message);
+      toast.add({ type: "error", description: message, priority: "high" });
     } finally {
       setIsProcessing(false);
     }
@@ -141,15 +140,16 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
 
   return (
     <div className="rounded-xl border border-stone-200/70 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] mb-4">
-      {/* Header bar — always visible */}
+      {/* Header bar */}
       <button
+        type="button"
         onClick={() => setMinimized((m) => !m)}
         className="w-full px-4 py-2.5 flex items-center justify-between group cursor-pointer select-none"
       >
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-[#12753e]" />
           <span className="text-[13px] font-semibold text-stone-800">
-            Case Study Import
+            Case Study Import & Z3 Verifier
           </span>
           {fileName && !minimized && (
             <span className="text-[11px] text-stone-400 ml-1">
@@ -159,7 +159,7 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
           {isProcessing && (
             <span className="flex items-center gap-1 text-[11px] text-[#12753e] ml-1">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Analyzing...
+              Verifying logic with Z3...
             </span>
           )}
         </div>
@@ -176,8 +176,9 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
       {!minimized && (
         <div className="px-4 pb-4 space-y-3 border-t border-stone-100 pt-3">
           <p className="text-[12px] text-stone-400">
-            Paste your case study or upload a document. AI will analyze and
-            create nodes with fragments automatically.
+            Paste your case brief or fact summary. GLM-5.3 extracts the
+            5-fragment schema, and Z3 computes minimal unsatisfiable cores
+            directly on the backend.
           </p>
 
           <div>
@@ -189,6 +190,7 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
               className="hidden"
             />
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing || isParsing}
               className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-stone-200 bg-stone-50/30 py-3 text-[12px] text-stone-400 hover:border-[#12753e]/30 hover:bg-[#dff3e7]/30 hover:text-[#12753e] transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -215,7 +217,7 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
           <Textarea
             value={caseStudyText}
             onChange={(e) => setCaseStudyText(e.target.value)}
-            placeholder="Paste your case study, legal brief, or fact summary here..."
+            placeholder="Paste fact patterns, limitation dates, or legal rules here..."
             rows={8}
             disabled={isProcessing}
             className="text-[13px] resize-none border-stone-200 focus-visible:ring-stone-300 placeholder:text-stone-300"
@@ -228,6 +230,7 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
                 : "Min 50 characters"}
             </span>
             <Button
+              type="button"
               onClick={handleSubmit}
               disabled={isProcessing || caseStudyText.trim().length < 50}
               className="h-8 px-4 text-[12px] bg-[#12753e] hover:bg-[#0d582f] text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
@@ -235,12 +238,12 @@ const CaseStudyForm = ({ problemSpaceId }: Props) => {
               {isProcessing ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                  Analyzing...
+                  Running Solver...
                 </>
               ) : (
                 <>
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                  Analyze with AI
+                  Run SMT Verifier
                 </>
               )}
             </Button>

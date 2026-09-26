@@ -5,6 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import pypdf
+import docx
+import io
 
 from backend.core.database import get_db
 from backend.services.ai_service import extract_legal_nodes
@@ -135,3 +138,25 @@ def process_case_study(req: AnalyzeCaseRequest, db: Session = Depends(get_db)):
         "verification": verification,
         "fragments_count": len(created_nodes)
     }
+    
+@router.post("/parse-document")
+async def parse_document(file: UploadFile = File(...)):
+    filename = file.filename.lower() if file.filename else ""
+    content = await file.read()
+    extracted_text = ""
+
+    try:
+        if filename.endswith(".txt"):
+            extracted_text = content.decode("utf-8")
+        elif filename.endswith(".pdf"):
+            reader = pypdf.PdfReader(io.BytesIO(content))
+            extracted_text = "\n".join([page.extract_text() or "" for page in reader.pages])
+        elif filename.endswith(".docx"):
+            doc = docx.Document(io.BytesIO(content))
+            extracted_text = "\n".join([para.text for para in doc.paragraphs])
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format")
+
+        return {"filename": file.filename, "text": extracted_text.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
