@@ -1,6 +1,6 @@
 "use client";
 
-import { User } from "@/generated/prisma";
+import React, { useState, useEffect } from "react";
 import {
   AlertTriangle,
   Download,
@@ -10,17 +10,18 @@ import {
   Lock,
   Trash2,
 } from "lucide-react";
-import React from "react";
-import { toast } from "sonner";
+
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { AppUser } from "./profile-tab";
 
-type Props = {
-  user: User;
-  onSave: (section: string) => Promise<void>;
-};
+interface Props {
+  user: AppUser;
+  onSave?: (section: string) => Promise<void>;
+}
 
 type PrivacyPrefs = {
   profileSearchable: boolean;
@@ -66,52 +67,73 @@ const RETENTION_OPTIONS = [
   },
 ] as const;
 
-const PrivacyTab = ({ onSave }: Props) => {
-  const [prefs, setPrefs] = React.useState<PrivacyPrefs>(DEFAULTS);
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [exportingData, setExportingData] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = React.useState("");
+const PrivacyTab = ({ user, onSave }: Props) => {
+  const [prefs, setPrefs] = useState<PrivacyPrefs>(DEFAULTS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
-  React.useEffect(() => {
+  useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/settings/privacy");
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/users/${user.id}/settings/privacy`,
+        );
         if (!res.ok) throw new Error();
-        const data = (await res.json()) as { prefs: PrivacyPrefs };
-        setPrefs(data.prefs);
+        const data = await res.json();
+        setPrefs(data.prefs || DEFAULTS);
       } catch {
-        toast.error("Failed to load privacy preferences.");
+        toast.add({
+          type: "error",
+          description: "Failed to load privacy controls.",
+          priority: "high",
+        });
       } finally {
         setLoading(false);
       }
     };
 
-    void load();
-  }, []);
+    if (user?.id) {
+      load();
+    }
+  }, [user?.id]);
 
   const patch = async (update: Partial<PrivacyPrefs>) => {
     setSaving(true);
     const prev = prefs;
-    setPrefs({ ...prefs, ...update });
+    setPrefs((current) => ({ ...current, ...update }));
 
     try {
-      const res = await fetch("/api/settings/privacy", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
-      });
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/users/${user.id}/settings/privacy`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(update),
+        },
+      );
 
       if (!res.ok) throw new Error();
+      const data = await res.json();
+      setPrefs(data.prefs || { ...prev, ...update });
 
-      const data = (await res.json()) as { prefs: PrivacyPrefs };
-      setPrefs(data.prefs);
-      await onSave("privacy");
-      toast.success("Privacy settings saved.");
+      if (onSave) {
+        await onSave("privacy");
+      }
+
+      toast.add({
+        type: "success",
+        description: "Privacy settings saved.",
+      });
     } catch {
       setPrefs(prev);
-      toast.error("Failed to save privacy settings.");
+      toast.add({
+        type: "error",
+        description: "Failed to save privacy settings via Python backend.",
+        priority: "high",
+      });
     } finally {
       setSaving(false);
     }
@@ -120,16 +142,18 @@ const PrivacyTab = ({ onSave }: Props) => {
   const handleExport = async () => {
     setExportingData(true);
     try {
-      const res = await fetch("/api/settings/privacy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "export" }),
-      });
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/users/${user.id}/export`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!res.ok) throw new Error();
 
-      const payload = (await res.json()) as { data: unknown };
-      const json = JSON.stringify(payload.data, null, 2);
+      const payload = await res.json();
+      const json = JSON.stringify(payload.data || payload, null, 2);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -138,9 +162,16 @@ const PrivacyTab = ({ onSave }: Props) => {
       anchor.click();
       URL.revokeObjectURL(url);
 
-      toast.success("Data export generated.");
+      toast.add({
+        type: "success",
+        description: "Data export generated successfully.",
+      });
     } catch {
-      toast.error("Failed to export your data.");
+      toast.add({
+        type: "error",
+        description: "Failed to export your data.",
+        priority: "high",
+      });
     } finally {
       setExportingData(false);
     }
@@ -148,31 +179,40 @@ const PrivacyTab = ({ onSave }: Props) => {
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmation !== "DELETE") {
-      toast.error("Type DELETE to confirm account deletion.");
+      toast.add({
+        type: "error",
+        description: "Type DELETE to confirm account deletion.",
+        priority: "high",
+      });
       return;
     }
 
     setDeleting(true);
     try {
-      const res = await fetch("/api/settings/privacy", {
+      const res = await fetch(`http://127.0.0.1:8000/api/users/${user.id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmation: "DELETE" }),
       });
 
       if (!res.ok) throw new Error();
 
-      toast.success("Account deleted.");
+      toast.add({
+        type: "success",
+        description: "Account permanently deleted.",
+      });
       window.location.href = "/sign-in";
     } catch {
-      toast.error("Failed to delete account.");
+      toast.add({
+        type: "error",
+        description: "Failed to delete account.",
+        priority: "high",
+      });
       setDeleting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-(--brand-green)/15 bg-white p-6 flex items-center gap-3 text-sm text-[#5f7a70]">
+      <div className="rounded-xl border border-border/50 bg-white p-6 flex items-center gap-3 text-sm text-[#5f7a70]">
         <RefreshCw className="h-4 w-4 animate-spin text-brand-green" />
         Loading privacy controls...
       </div>
@@ -181,9 +221,9 @@ const PrivacyTab = ({ onSave }: Props) => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-(--brand-green)/15 bg-white p-5">
+      <div className="rounded-xl border border-border/50 bg-white p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--brand-green)/10">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/10">
             <Shield className="h-4 w-4 text-brand-green" />
           </div>
           <div>
@@ -197,10 +237,10 @@ const PrivacyTab = ({ onSave }: Props) => {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-start justify-between gap-4 border-b border-(--brand-green)/10 pb-4">
+          <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
             <div className="min-w-0">
               <Label
-                className="text-sm font-medium text-brand-ink"
+                className="text-sm font-medium text-brand-ink cursor-pointer"
                 htmlFor="profileSearchable"
               >
                 Profile searchable in shared spaces
@@ -216,14 +256,14 @@ const PrivacyTab = ({ onSave }: Props) => {
               onCheckedChange={(checked) =>
                 void patch({ profileSearchable: checked })
               }
-              className="data-[state=checked]:bg-brand-green shrink-0"
+              className="shrink-0"
             />
           </div>
 
-          <div className="flex items-start justify-between gap-4 border-b border-(--brand-green)/10 pb-4">
+          <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
             <div className="min-w-0">
               <Label
-                className="text-sm font-medium text-brand-ink"
+                className="text-sm font-medium text-brand-ink cursor-pointer"
                 htmlFor="allowUsageAnalytics"
               >
                 Allow usage analytics
@@ -239,14 +279,14 @@ const PrivacyTab = ({ onSave }: Props) => {
               onCheckedChange={(checked) =>
                 void patch({ allowUsageAnalytics: checked })
               }
-              className="data-[state=checked]:bg-brand-green shrink-0"
+              className="shrink-0"
             />
           </div>
 
-          <div className="flex items-start justify-between gap-4 border-b border-(--brand-green)/10 pb-4">
+          <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
             <div className="min-w-0">
               <Label
-                className="text-sm font-medium text-brand-ink"
+                className="text-sm font-medium text-brand-ink cursor-pointer"
                 htmlFor="allowAiTraining"
               >
                 Allow AI model improvement from my content
@@ -262,14 +302,14 @@ const PrivacyTab = ({ onSave }: Props) => {
               onCheckedChange={(checked) =>
                 void patch({ allowAiTraining: checked })
               }
-              className="data-[state=checked]:bg-brand-green shrink-0"
+              className="shrink-0"
             />
           </div>
 
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <Label
-                className="text-sm font-medium text-brand-ink"
+                className="text-sm font-medium text-brand-ink cursor-pointer"
                 htmlFor="allowPersonalizedInsights"
               >
                 Personalized insight ranking
@@ -285,15 +325,15 @@ const PrivacyTab = ({ onSave }: Props) => {
               onCheckedChange={(checked) =>
                 void patch({ allowPersonalizedInsights: checked })
               }
-              className="data-[state=checked]:bg-brand-green shrink-0"
+              className="shrink-0"
             />
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-(--brand-green)/15 bg-white p-5">
+      <div className="rounded-xl border border-border/50 bg-white p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--brand-green)/10">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/10">
             <Database className="h-4 w-4 text-brand-green" />
           </div>
           <div>
@@ -315,8 +355,8 @@ const PrivacyTab = ({ onSave }: Props) => {
               onClick={() => void patch({ dataRetentionPolicy: option.value })}
               className={`flex-1 min-w-36 rounded-lg border px-4 py-3 text-left transition-all ${
                 prefs.dataRetentionPolicy === option.value
-                  ? "border-brand-green bg-(--brand-green)/8 text-brand-ink"
-                  : "border-(--brand-green)/15 bg-white text-[#5f7a70] hover:border-(--brand-green)/40"
+                  ? "border-brand-green bg-brand-green/10 text-brand-ink"
+                  : "border-border/50 bg-white text-[#5f7a70] hover:border-brand-green/40"
               }`}
             >
               <p
@@ -336,9 +376,9 @@ const PrivacyTab = ({ onSave }: Props) => {
         </div>
       </div>
 
-      <div className="rounded-xl border border-(--brand-green)/15 bg-white p-5">
+      <div className="rounded-xl border border-border/50 bg-white p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--brand-green)/10">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/10">
             <Lock className="h-4 w-4 text-brand-green" />
           </div>
           <div>
@@ -353,22 +393,20 @@ const PrivacyTab = ({ onSave }: Props) => {
           type="button"
           onClick={handleExport}
           disabled={exportingData}
-          className="bg-brand-green hover:bg-brand-green-700 text-white"
+          className="bg-brand-green hover:bg-brand-green/90 text-white"
         >
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4 mr-2" />
           {exportingData ? "Preparing export..." : "Export my data"}
         </Button>
       </div>
 
-      <div className="rounded-xl border border-(--brand-red)/25 bg-white p-5">
+      <div className="rounded-xl border border-red-500/25 bg-white p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--brand-red)/10">
-            <AlertTriangle className="h-4 w-4 text-brand-red" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+            <AlertTriangle className="h-4 w-4 text-red-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-brand-red">
-              Danger zone
-            </h3>
+            <h3 className="text-sm font-semibold text-red-500">Danger zone</h3>
             <p className="text-xs text-[#5f7a70] mt-0.5">
               Permanently delete your account and all associated data.
             </p>
@@ -385,6 +423,7 @@ const PrivacyTab = ({ onSave }: Props) => {
           <Input
             id="delete-confirmation"
             value={deleteConfirmation}
+            disabled={deleting}
             onChange={(event) => setDeleteConfirmation(event.target.value)}
             placeholder="DELETE"
             className="max-w-sm"
@@ -396,7 +435,7 @@ const PrivacyTab = ({ onSave }: Props) => {
             onClick={handleDeleteAccount}
             className="w-fit"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 mr-2" />
             {deleting ? "Deleting account..." : "Delete account permanently"}
           </Button>
         </div>

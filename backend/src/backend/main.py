@@ -6,7 +6,7 @@ load_dotenv()
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session, select
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api.routes import problem_space, ai, nodes, verifier
+from backend.api.routes import problem_space, ai, nodes, verifier, users
 
 
 app = FastAPI(title="Suika API", description="Python backend for Suika")
@@ -31,6 +31,7 @@ app.add_middleware(
 #     return {"plan": subscription.plan}
 
 # Register new route calls
+app.include_router(users.router)
 app.include_router(problem_space.router, prefix="/api/problem-spaces", tags=["Problem Spaces"])
 app.include_router(problem_space.router, prefix="/api/problem-spaces", tags=["Problem Spaces"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI Operations"]) # Regis

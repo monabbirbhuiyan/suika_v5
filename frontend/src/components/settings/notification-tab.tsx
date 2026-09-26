@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
-import { toast } from "sonner";
+import React, { useState, useEffect } from "react";
 import { Bell, Mail, Smartphone, RefreshCw } from "lucide-react";
+
+import { toast } from "@/components/ui/toast";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { AppUser } from "./profile-tab";
 
 type Prefs = {
   emailWeeklySummary: boolean;
@@ -85,7 +87,7 @@ const ToggleRow = ({
   onChange: (val: boolean) => void;
   disabled: boolean;
 }) => (
-  <div className="flex items-start justify-between gap-4 py-3 border-b border-(--brand-green)/10 last:border-0">
+  <div className="flex items-start justify-between gap-4 py-3 border-b border-border/40 last:border-0">
     <div className="flex-1 min-w-0">
       <Label
         htmlFor={item.key}
@@ -100,7 +102,7 @@ const ToggleRow = ({
       checked={checked}
       onCheckedChange={onChange}
       disabled={disabled}
-      className="data-[state=checked]:bg-brand-green shrink-0 mt-0.5"
+      className="shrink-0 mt-0.5"
     />
   </div>
 );
@@ -116,9 +118,9 @@ const SectionCard = ({
   description: string;
   children: React.ReactNode;
 }) => (
-  <div className="rounded-xl border border-(--brand-green)/15 bg-white p-5">
+  <div className="rounded-xl border border-border/50 bg-white p-5">
     <div className="flex items-start gap-3 mb-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--brand-green)/10">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/10">
         <Icon className="h-4 w-4 text-brand-green" />
       </div>
       <div>
@@ -130,44 +132,73 @@ const SectionCard = ({
   </div>
 );
 
-const NotificationsTab = () => {
-  const [prefs, setPrefs] = React.useState<Prefs>(DEFAULTS);
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
+interface Props {
+  user: AppUser;
+  onSave?: (section: string) => Promise<void>;
+}
 
-  React.useEffect(() => {
+const NotificationsTab = ({ user, onSave }: Props) => {
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/settings/notifications");
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/users/${user.id}/settings/notifications`,
+        );
         if (!res.ok) throw new Error();
-        const data = (await res.json()) as { prefs: Prefs };
-        setPrefs(data.prefs);
+        const data = await res.json();
+        setPrefs(data.prefs || DEFAULTS);
       } catch {
-        toast.error("Failed to load notification preferences.");
+        toast.add({
+          type: "error",
+          description: "Failed to load notification preferences.",
+        });
       } finally {
         setLoading(false);
       }
     };
-    void load();
-  }, []);
+    if (user?.id) {
+      load();
+    }
+  }, [user?.id]);
 
   const patch = async (update: Partial<Prefs>) => {
     setSaving(true);
     const prev = prefs;
-    setPrefs({ ...prefs, ...update });
+    setPrefs((current) => ({ ...current, ...update }));
+
     try {
-      const res = await fetch("/api/settings/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
-      });
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/users/${user.id}/settings/notifications`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(update),
+        },
+      );
+
       if (!res.ok) throw new Error();
-      const data = (await res.json()) as { prefs: Prefs };
-      setPrefs(data.prefs);
-      toast.success("Preferences saved.");
+      const data = await res.json();
+      setPrefs(data.prefs || { ...prev, ...update });
+
+      toast.add({
+        type: "success",
+        description: "Preferences saved.",
+      });
+
+      if (onSave) {
+        await onSave("notifications");
+      }
     } catch {
       setPrefs(prev);
-      toast.error("Failed to save preferences.");
+      toast.add({
+        type: "error",
+        description: "Failed to save preferences via Python backend.",
+        priority: "high",
+      });
     } finally {
       setSaving(false);
     }
@@ -179,7 +210,7 @@ const NotificationsTab = () => {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-(--brand-green)/15 bg-white p-6 flex items-center gap-3 text-sm text-[#5f7a70]">
+      <div className="rounded-xl border border-border/50 bg-white p-6 flex items-center gap-3 text-sm text-[#5f7a70]">
         <RefreshCw className="h-4 w-4 animate-spin text-brand-green" />
         Loading preferences…
       </div>
@@ -234,12 +265,14 @@ const NotificationsTab = () => {
               onClick={() => void patch({ digestFrequency: opt.value })}
               className={`flex-1 min-w-28 rounded-lg border px-4 py-3 text-left transition-all ${
                 prefs.digestFrequency === opt.value
-                  ? "border-brand-green bg-(--brand-green)/8 text-brand-ink"
-                  : "border-(--brand-green)/15 bg-white text-[#5f7a70] hover:border-(--brand-green)/40"
+                  ? "border-brand-green bg-brand-green/10 text-brand-ink"
+                  : "border-border/50 bg-white text-[#5f7a70] hover:border-brand-green/40"
               }`}
             >
               <p
-                className={`text-sm font-medium ${prefs.digestFrequency === opt.value ? "text-brand-green" : ""}`}
+                className={`text-sm font-medium ${
+                  prefs.digestFrequency === opt.value ? "text-brand-green" : ""
+                }`}
               >
                 {opt.label}
               </p>
